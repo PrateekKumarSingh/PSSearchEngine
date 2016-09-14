@@ -1,12 +1,46 @@
-﻿Function Invoke-BingAutoComplete
+$Global:SearchedFlag = $False
+
+Function Invoke-BingAutoComplete
 {
     Return (Invoke-RestMethod -Uri "http://api.bing.com/qsml.aspx?query=$($TextBox1.text)").searchsuggestion.section.item.text
 }
 
 #Function to fetch the data from Wolfram|Alpha API based on user query
-Function Invoke-WolframAlphaAPI($Query)
+Function Invoke-WolframAlphaAPI($Global:Query)
 {
 Return (Invoke-RestMethod -Uri "http://api.wolframalpha.com/v2/query?appid=46XTUT-6T5H7K4V32&input=$($Query.Replace(' ','%20'))").queryresult
+}
+
+#Extract Results to HTML file
+Function Get-Html($R)
+{
+
+    "<html>"
+    "<body>"            
+    Foreach($p in $Result.pod)
+    {
+        $subpod = $p.subpod
+        
+    
+        "<h3>$($p.title)</h3>"
+    
+            foreach($s in $subpod)
+            {
+                #Incase plain text field is blank, display the image in the panel
+                if($s.plaintext -eq '')
+                {
+                    
+                     "<img src='$($s.img.src)' />"
+                }
+                Else
+                {
+                     "<p>$($s.plaintext)</p>"
+                }
+            }
+           #"<hr>"
+    }
+    "</body>"
+    "</html>"
 }
 
 #Eventhandler and Flow control once the Search button is pressed
@@ -21,11 +55,22 @@ $EventHandler =[System.EventHandler]{
                                 $Panel2.Visible = $True
                                 $Button.Enabled = $True
                                 $Panel3.Visible = $False
+                                $Global:SearchedFlag = $True
                               }
 
+$SaveEventHandler = [System.EventHandler]{
+
+    Get-Html $result | Out-File "$env:TEMP\$Query.html"
+    ii "$env:TEMP\$Query.html"
+}
+
 $DidYouMeanEventHandler =[System.EventHandler]{
+                                $Panel2.Visible = $False
+                                $Panel2.Controls.clear()
                                 $TextBox1.Text = $DidYouMeanText
-                                $DidYouMeanButton.Enabled = $False                                
+                                $DidYouMeanButton.visible = $False                                
+                                $ProgressBar.value = 0
+                                $Panel3.Visible = $True
                                 Create-PanelStructure $(Invoke-WolframAlphaAPI $DidYouMeanText)
                                 $Panel2.Visible = $True
                                 $Button.Enabled = $True
@@ -53,7 +98,13 @@ Function Create-WindowsForm()
     $TextBox1.width = 340;
     $TextBox1.Font = $Font2
     
-    $TextBox1.add_keyup({      
+    $TextBox1.add_keyup({     
+                            If($Global:SearchedFlag -eq $true)
+                            {
+                                $SearchedFlag
+                                $Panel2.controls.clear()
+                                $Global:SearchedFlag = $False     
+                            }
                             $Data = Invoke-BingAutoComplete
                             $Data | %{$StrWithLineBreaks+=$_+';'}
                             $AutocompleteLabel.text=$StrWithLineBreaks -replace ";","`n"
@@ -65,19 +116,27 @@ Function Create-WindowsForm()
     $Button.Font = $Font2
     $Button.Height = 40
     $Button.Add_Click($EventHandler)
-    
+
+    #Define Save Button
+    $SaveButton = New-Object System.Windows.Forms.Button
+    $SaveButton.text = "Save"    
+    $SaveButton.Font = $Font2
+    $SaveButton.Height =  40
+    $SaveButton.Add_Click($SaveEventHandler)
+
     #Define the Progress Bar
     $ProgressBar = New-Object System.Windows.Forms.ProgressBar
     $ProgressBar.Maximum = 100
     $ProgressBar.Minimum = 0
     $ProgressBar.Height = 10
-    $ProgressBar.Width = 430
+    $ProgressBar.Width = 500
     $ProgressBar.ForeColor = 'Blue'
     $ProgressBar.Style = 'block'
+    $ProgressBar.Visible = $true
     
     #Define the Form
     $Form = New-Object system.Windows.Forms.Form
-    $Form.Text="Search your Query here  [Powered by Wolfram|Alpha API]"
+    $Form.Text="PS Search Engine"
     $Form.BackColor = 'white'
     $Form.AutoSize = $False
     $Form.MinimizeBox = $False
@@ -85,7 +144,8 @@ Function Create-WindowsForm()
     $Form.WindowState = "Normal"
     $Form.StartPosition = "CenterScreen"
     $Form.Height = 500
-    $Form.Width = 470
+    $Form.Width = 550
+    $Form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Get-Process -id $pid | Select-Object -ExpandProperty Path))                    
     $Form.AutoScroll = $True
     $Form.AcceptButton = $Button
 
@@ -103,6 +163,7 @@ Function Create-WindowsForm()
     $Panel1.AutoSize = $True
     $Panel1.Controls.Add($TextBox1)
     $Panel1.Controls.Add($Button)
+    $Panel1.Controls.Add($SaveButton)
 
 
     
@@ -137,7 +198,7 @@ Function Create-WindowsForm()
 }
 
 #Function to Create the data structure for Output on Panel 3
-Function Create-PanelStructure($Result)
+Function Create-PanelStructure($Global:Result)
 {
     #Try
     #{
@@ -148,6 +209,18 @@ Function Create-PanelStructure($Result)
         $Increment = (100/[int]$Result.numpods)
 
         $i=0 #Initialize ProgressBar Value 
+
+
+        If($Result.warnings.spellcheck.text)
+        {
+            $WarningLabel = New-Object Windows.forms.label
+            $WarningLabel.Text = "Warning : $($Result.warnings.spellcheck.text)"
+            $WarningLabel.Font = $Font
+            $WarningLabel.ForeColor = "Red"
+            $WarningLabel.AutoSize = $True
+            $Panel2.Controls.Add($WarningLabel)
+        }
+         
 
             Foreach($p in $Result.pod)
             {
@@ -164,7 +237,10 @@ Function Create-PanelStructure($Result)
                 #{
                 #    
                 #}
+
                 #
+
+
 
                     foreach($s in $subpod)
                     {
@@ -190,27 +266,50 @@ Function Create-PanelStructure($Result)
             #Increment the ProgressBar and display increasing values
             $i=$i+$Increment
             $ProgressBar.Value = $i
-            Write-host $i
+            #Write-host $i
 
             }
         }
-        Else
+        ElseIf($Result.didyoumeans.didyoumean)
         {
             $DidYouMeans =  $Result.didyoumeans.didyoumean
+            $didyoumeans
             
             Foreach($DidYouMean in $DidYouMeans)
             {
-                $DidYouMeanButton = New-Object System.Windows.Forms.Button
-                $DidYouMeanText = $DidYouMean."#text"
-                $DidYouMeanButton.Text = "Did you mean $DidYouMeanText"
+                $GLobal:DidYouMeanButton = New-Object System.Windows.Forms.Button
+                $Global:DidYouMeanText = $DidYouMean."#text"
+                $DidYouMeanButton.Text = "$DidYouMeanText"
                 $DidYouMeanButton.AutoSize = $True
-                #$Label.Font = $Font
-                #$Label.ForeColor = 'Blue'
+                $DidYouMeanButton.ForeColor = "White"
+                $DidYouMeanButton.BackColor = "Black"
+                $DidYouMeanButton.Font = $Font
+                $DidYouMeanButton
+                
+                $Global:DidYouMeanLabel = New-Object System.Windows.Forms.Label
+                $DidYouMeanLabel.Font = $Font
+                $DidYouMeanLabel.Text = "Did you mean ?"
+                $DidYouMeanLabel.AutoSize = $True
+
                 $DidYouMeanButton.Add_Click($DidYouMeanEventHandler)
+                $Panel2.Controls.Add($DidYouMeanLabel)
                 $Panel2.Controls.Add($DidYouMeanButton)
             }
         }
-
+        ElseIf($Result.tips.tip)
+        {
+                $Tips =  $Result.Tips.Tip
+            
+                Foreach($Tip in $Tips)
+                {
+                    
+                    $Global:TipsLabel = New-Object System.Windows.Forms.Label
+                    $TipsLabel.Font = $Font
+                    $TipsLabel.Text = $tip.Text
+                    $TipsLabel.AutoSize = $True
+                    $Panel2.Controls.Add($tipsLabel)
+                }
+        }
     #}
     #catch
     #{
