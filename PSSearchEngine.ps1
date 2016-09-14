@@ -1,5 +1,3 @@
-$Global:SearchedFlag = $False
-
 Function Invoke-BingAutoComplete
 {
     Return (Invoke-RestMethod -Uri "http://api.bing.com/qsml.aspx?query=$($TextBox1.text)").searchsuggestion.section.item.text
@@ -11,7 +9,7 @@ Function Invoke-WolframAlphaAPI($Global:Query)
 Return (Invoke-RestMethod -Uri "http://api.wolframalpha.com/v2/query?appid=46XTUT-6T5H7K4V32&input=$($Query.Replace(' ','%20'))").queryresult
 }
 
-#Extract Results to HTML file
+#Extract Results to HTML fileh
 Function Get-Html($R)
 {
 
@@ -43,18 +41,18 @@ Function Get-Html($R)
     "</html>"
 }
 
-#Eventhandler and Flow control once the Search button is pressed
+#Event handlers
 $EventHandler =[System.EventHandler]{
 
                                 $Panel2.Visible = $False
                                 $Panel2.Controls.clear()
                                 $ProgressBar.value = 0
-                                $Panel3.Visible = $True
+                                $StatusPanel.Visible = $True
                                 $Button.Enabled = $False                                
                                 Create-PanelStructure $(Invoke-WolframAlphaAPI $TextBox1.Text)
                                 $Panel2.Visible = $True
                                 $Button.Enabled = $True
-                                $Panel3.Visible = $False
+                                $StatusPanel.Visible = $False
                                 $Global:SearchedFlag = $True
                               }
 
@@ -70,15 +68,24 @@ $DidYouMeanEventHandler =[System.EventHandler]{
                                 $TextBox1.Text = $DidYouMeanText
                                 $DidYouMeanButton.visible = $False                                
                                 $ProgressBar.value = 0
-                                $Panel3.Visible = $True
+                                $StatusPanel.Visible = $True
                                 Create-PanelStructure $(Invoke-WolframAlphaAPI $DidYouMeanText)
                                 $Panel2.Visible = $True
                                 $Button.Enabled = $True
-                                $Panel3.Visible = $False
+                                $StatusPanel.Visible = $False
                               }
 
-#Funtion to Create the Basic form and its Structure.
-Function Create-WindowsForm()
+$AutoCompleteKeyupEventhandler =  [System.Windows.Forms.KeyEventHandler]{                           
+                            $Panel2.Controls.clear()
+                            $StrWithLineBreaks=@()
+                            $Data = Invoke-BingAutoComplete
+                            $Data | %{$StrWithLineBreaks+=$_+';'}
+                            $AutocompleteLabel.text=$StrWithLineBreaks -replace ";","`n"
+                            $Panel2.Controls.Add($AutocompleteLabel)
+}
+
+#Main Funtion to Create the Basic form and its Structure.
+Function Main
 {    
     #Calling the Assemblies
     [void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
@@ -97,18 +104,7 @@ Function Create-WindowsForm()
     $TextBox1.Height = 40
     $TextBox1.width = 340;
     $TextBox1.Font = $Font2
-    
-    $TextBox1.add_keyup({     
-                            If($Global:SearchedFlag -eq $true)
-                            {
-                                $SearchedFlag
-                                $Panel2.controls.clear()
-                                $Global:SearchedFlag = $False     
-                            }
-                            $Data = Invoke-BingAutoComplete
-                            $Data | %{$StrWithLineBreaks+=$_+';'}
-                            $AutocompleteLabel.text=$StrWithLineBreaks -replace ";","`n"
-    }) 
+    $TextBox1.add_keyup($AutoCompleteKeyupEventhandler) 
 
     #Define Search Button
     $Button = New-Object System.Windows.Forms.Button
@@ -164,8 +160,6 @@ Function Create-WindowsForm()
     $Panel1.Controls.Add($TextBox1)
     $Panel1.Controls.Add($Button)
     $Panel1.Controls.Add($SaveButton)
-
-
     
     #Define Sub Panel 2
     $Panel2 = new-object System.Windows.Forms.FlowLayoutPanel
@@ -179,22 +173,19 @@ Function Create-WindowsForm()
     $Panel2.Controls.Add($AutocompleteLabel)
 
     #Define Sub Panel 3
-    $Panel3 = new-object System.Windows.Forms.FlowLayoutPanel
-    $Panel3.AutoSize = $True
-    $Panel3.Visible = $False
-    $Panel3.Controls.Add($ProgressBar)
+    $StatusPanel = new-object System.Windows.Forms.FlowLayoutPanel
+    $StatusPanel.AutoSize = $True
+    $StatusPanel.Visible = $False
+    $StatusPanel.Controls.Add($ProgressBar)
 
     #Add all panels to the root Panel, so that the flow direction is Top to Down.
     $RootPanel.Controls.Add($Panel1)
-    $RootPanel.Controls.Add($Panel3)
+    $RootPanel.Controls.Add($StatusPanel)
     $RootPanel.Controls.Add($Panel2)
     
     #Add Root Panel to the Form and display it.
     $Form.Controls.Add($RootPanel)
-    [void]$Form.ShowDialog()
-
-    
-        
+    [void]$Form.ShowDialog()      
 }
 
 #Function to Create the data structure for Output on Panel 3
@@ -205,23 +196,24 @@ Function Create-PanelStructure($Global:Result)
         If($Result.success -eq $True)
         {
 
-        #Formula to calculate Progress bar increment each time a Sub Pod is parsed
-        $Increment = (100/[int]$Result.numpods)
+            #Formula to calculate Progress bar increment each time a Sub Pod is parsed
+            $Increment = (100/[int]$Result.numpods)
 
-        $i=0 #Initialize ProgressBar Value 
+            $i=0 #Initialize ProgressBar Value 
+            $TimingsLabel = New-Object Windows.forms.label
+            $TimingsLabel.AutoSize = $True
+            $TimingsLabel.Text = "{0:N2}" -f [decimal]$r.timing
 
-
-        If($Result.warnings.spellcheck.text)
-        {
-            $WarningLabel = New-Object Windows.forms.label
-            $WarningLabel.Text = "Warning : $($Result.warnings.spellcheck.text)"
-            $WarningLabel.Font = $Font
-            $WarningLabel.ForeColor = "Red"
-            $WarningLabel.AutoSize = $True
-            $Panel2.Controls.Add($WarningLabel)
-        }
+            If($Result.warnings.spellcheck.text)
+            {
+                $WarningLabel = New-Object Windows.forms.label
+                $WarningLabel.Text = "Warning : $($Result.warnings.spellcheck.text)"
+                $WarningLabel.Font = $Font
+                $WarningLabel.ForeColor = "Red"
+                $WarningLabel.AutoSize = $True
+                $Panel2.Controls.Add($WarningLabel)
+            }
          
-
             Foreach($p in $Result.pod)
             {
                 $subpod = $p.subpod
@@ -239,9 +231,6 @@ Function Create-PanelStructure($Global:Result)
                 #}
 
                 #
-
-
-
                     foreach($s in $subpod)
                     {
                         #Incase plain text field is blank, display the image in the panel
@@ -273,8 +262,13 @@ Function Create-PanelStructure($Global:Result)
         ElseIf($Result.didyoumeans.didyoumean)
         {
             $DidYouMeans =  $Result.didyoumeans.didyoumean
-            $didyoumeans
-            
+                        
+            $Global:DidYouMeanLabel = New-Object System.Windows.Forms.Label
+            $DidYouMeanLabel.Font = $Font
+            $DidYouMeanLabel.Text = "Did you mean ?"
+            $DidYouMeanLabel.AutoSize = $True
+            $Panel2.Controls.Add($DidYouMeanLabel)
+
             Foreach($DidYouMean in $DidYouMeans)
             {
                 $GLobal:DidYouMeanButton = New-Object System.Windows.Forms.Button
@@ -284,15 +278,8 @@ Function Create-PanelStructure($Global:Result)
                 $DidYouMeanButton.ForeColor = "White"
                 $DidYouMeanButton.BackColor = "Black"
                 $DidYouMeanButton.Font = $Font
-                $DidYouMeanButton
-                
-                $Global:DidYouMeanLabel = New-Object System.Windows.Forms.Label
-                $DidYouMeanLabel.Font = $Font
-                $DidYouMeanLabel.Text = "Did you mean ?"
-                $DidYouMeanLabel.AutoSize = $True
 
                 $DidYouMeanButton.Add_Click($DidYouMeanEventHandler)
-                $Panel2.Controls.Add($DidYouMeanLabel)
                 $Panel2.Controls.Add($DidYouMeanButton)
             }
         }
@@ -324,4 +311,4 @@ Function Create-PanelStructure($Global:Result)
 }
 
 #Calling the Function to start the tool
-Create-WindowsForm
+Main
