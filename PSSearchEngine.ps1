@@ -46,42 +46,63 @@ $EventHandler =[System.EventHandler]{
 
                                 $Panel2.Visible = $False
                                 $Panel2.Controls.clear()
+                                $StatusPanel.Controls.clear()
                                 $ProgressBar.value = 0
                                 $StatusPanel.Visible = $True
                                 $Button.Enabled = $False                                
-                                Create-PanelStructure $(Invoke-WolframAlphaAPI $TextBox1.Text)
+                                DisplayResults $(Invoke-WolframAlphaAPI $TextBox1.Text)
                                 $Panel2.Visible = $True
                                 $Button.Enabled = $True
-                                $StatusPanel.Visible = $False
-                                $Global:SearchedFlag = $True
+                                $StatusPanel.controls.remove($ProgressBar)
                               }
 
 $SaveEventHandler = [System.EventHandler]{
 
-    Get-Html $result | Out-File "$env:TEMP\$Query.html"
-    ii "$env:TEMP\$Query.html"
+                                Get-Html $result | Out-File "$env:TEMP\$Query.html"
+                                $StatusPanel.controls.clear()
+                                $StatusPanel.controls.add($StatusLabel)
+                                $StatusLabel.text = "Saved as File : "
+                                $LinkLabel = New-Object System.Windows.Forms.LinkLabel
+                                $LinkLabel.Text = "$env:TEMP\$Query.html  "
+                                $LinkLabel.AutoSize = $true
+                                $LinkLabel.Font = $ItalicFont
+                                $LinkLabel.add_Click({Invoke-Item "$env:TEMP\$Query.html"})
+                                $StatusPanel.Controls.Add($LinkLabel)
+                                #$OpenButton =  new-object System.Windows.Forms.Button
+                                #$OpenButton.Text = "Open"
+                                #$OpenButton.AutoSize = $True
+                                #$OpenButton.ForeColor = "White"
+                                #$OpenButton.BackColor = "Black"
+                                #$OpenButton.Font = $Font
+                                #$OpenButton.Add_Click({Invoke-Item "$env:TEMP\$Query.html"})
+                                #$StatusPanel.controls.add($OpenButton)
+                                #ii "$env:TEMP\$Query.html"
 }
 
 $DidYouMeanEventHandler =[System.EventHandler]{
+                                
                                 $Panel2.Visible = $False
                                 $Panel2.Controls.clear()
                                 $TextBox1.Text = $DidYouMeanText
-                                $DidYouMeanButton.visible = $False                                
+                                $DidYouMeanButton.visible = $False 
+                                $StatusPanel.Controls.clear()                               
                                 $ProgressBar.value = 0
                                 $StatusPanel.Visible = $True
-                                Create-PanelStructure $(Invoke-WolframAlphaAPI $DidYouMeanText)
+                                DisplayResults $(Invoke-WolframAlphaAPI $DidYouMeanText)
                                 $Panel2.Visible = $True
                                 $Button.Enabled = $True
-                                $StatusPanel.Visible = $False
+                                $StatusPanel.controls.remove($ProgressBar)
                               }
 
 $AutoCompleteKeyupEventhandler =  [System.Windows.Forms.KeyEventHandler]{                           
-                            $Panel2.Controls.clear()
-                            $StrWithLineBreaks=@()
-                            $Data = Invoke-BingAutoComplete
-                            $Data | %{$StrWithLineBreaks+=$_+';'}
-                            $AutocompleteLabel.text=$StrWithLineBreaks -replace ";","`n"
-                            $Panel2.Controls.Add($AutocompleteLabel)
+                                
+                                $Panel2.Controls.clear()
+                                $StatusPanel.Controls.clear()
+                                $StrWithLineBreaks=@()
+                                $Data = Invoke-BingAutoComplete
+                                $Data | %{$StrWithLineBreaks+=$_+';'}
+                                $AutocompleteLabel.text=$StrWithLineBreaks -replace ";","`n"
+                                $Panel2.Controls.Add($AutocompleteLabel)
 }
 
 #Main Funtion to Create the Basic form and its Structure.
@@ -92,6 +113,7 @@ Function Main
     #[void] [System.Reflection.Assembly]::LoadWithPartialName("System.Drawing")
 
     #Define Text Font object
+    $ItalicFont = New-Object System.Drawing.Font("lucida sans",8,[System.Drawing.FontStyle]::Italic) 
     $Font = New-Object System.Drawing.Font("lucida sans",10,[System.Drawing.FontStyle]::bold) 
     $Font2 = New-Object System.Drawing.Font("lucida sans",13,[System.Drawing.FontStyle]::bold) 
                 
@@ -173,7 +195,7 @@ Function Main
     $Panel2.Controls.Add($AutocompleteLabel)
 
     #Define Sub Panel 3
-    $StatusPanel = new-object System.Windows.Forms.FlowLayoutPanel
+    $Global:StatusPanel = new-object System.Windows.Forms.FlowLayoutPanel
     $StatusPanel.AutoSize = $True
     $StatusPanel.Visible = $False
     $StatusPanel.Controls.Add($ProgressBar)
@@ -189,7 +211,7 @@ Function Main
 }
 
 #Function to Create the data structure for Output on Panel 3
-Function Create-PanelStructure($Global:Result)
+Function DisplayResults($Global:Result)
 {
     #Try
     #{
@@ -200,9 +222,13 @@ Function Create-PanelStructure($Global:Result)
             $Increment = (100/[int]$Result.numpods)
 
             $i=0 #Initialize ProgressBar Value 
-            $TimingsLabel = New-Object Windows.forms.label
-            $TimingsLabel.AutoSize = $True
-            $TimingsLabel.Text = "{0:N2}" -f [decimal]$r.timing
+
+            $Global:StatusLabel = New-Object Windows.forms.label
+            $StatusLabel.AutoSize = $True
+            $StatusLabel.Text = "Time : "+ $("{0:N2}" -f [decimal]$Result.timing) + " Seconds"
+            $StatusLabel.Font = $Italicfont
+            $StatusLabel.ForeColor = "dimgray"
+            $StatusPanel.Controls.Add($StatusLabel)
 
             If($Result.warnings.spellcheck.text)
             {
