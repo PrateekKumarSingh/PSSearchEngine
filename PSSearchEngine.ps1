@@ -5,6 +5,7 @@
     
                                     $Panel2.Visible = $False
                                     $Panel2.Controls.clear()
+                                    $RelatedQueriesPanel.Controls.Clear()
                                     $StatusPanel.Controls.clear()
                                     $StatusPanel.controls.add($ProgressBar)
                                     $ProgressBar.value = 0
@@ -13,7 +14,12 @@
                                     DisplayResults $(Invoke-WolframAlphaAPI $TextBox1.Text)
                                     $Panel2.Visible = $True
                                     $Button.Enabled = $True
+                                    $ExpanderButton.Visible = $True
+                                    $ContractButton.Visible = $False
                                     $StatusPanel.controls.remove($ProgressBar)
+                                    #$RelatedQueriesPanel.Controls.Clear()
+                                    #$RelatedQueriesPanel.Visible = $True
+                                    #$RelatedQueriesPanel.Controls.Add($ExpanderButton)
                                   }
     
     $SaveEventHandler = [System.EventHandler]{
@@ -28,15 +34,6 @@
                                     $LinkLabel.Font = $ItalicFont
                                     $LinkLabel.add_Click({Invoke-Item "$env:TEMP\$Query.html"})
                                     $StatusPanel.Controls.Add($LinkLabel)
-                                    #$OpenButton =  new-object System.Windows.Forms.Button
-                                    #$OpenButton.Text = "Open"
-                                    #$OpenButton.AutoSize = $True
-                                    #$OpenButton.ForeColor = "White"
-                                    #$OpenButton.BackColor = "Black"
-                                    #$OpenButton.Font = $RegularFont
-                                    #$OpenButton.Add_Click({Invoke-Item "$env:TEMP\$Query.html"})
-                                    #$StatusPanel.controls.add($OpenButton)
-                                    #ii "$env:TEMP\$Query.html"
     }
     
     $DidYouMeanEventHandler =[System.EventHandler]{
@@ -52,6 +49,8 @@
                                     $Panel2.Visible = $True
                                     $Button.Enabled = $True
                                     $StatusPanel.controls.remove($ProgressBar)
+                                    #$RelatedQueriesPanel.Controls.Clear()
+                                    #$RelatedQueriesPanel.Controls.Add($ExpanderButton)
                                   }.GetNewClosure()
     
     $AutoCompleteKeyupEventhandler =  [System.Windows.Forms.KeyEventHandler]{                           
@@ -70,11 +69,17 @@
 
     $RelatedQueryExpanderEventHandler =[System.EventHandler]{
     
-                                    $RelatedQueries =  (Invoke-RestMethod -Uri $Result.related -Verbose).relatedqueries.relatedquery
-                                    Write-Host $RelatedQueries
+                                    If(-not($RelatedQueriesPanel.Controls|? text -eq '+'))
+                                    {
+                                        $RelatedQueriesPanel.Controls.Add($ExpanderButton)
+                                    }
+                                    
+                                    $RelatedQueriesPanel.Controls.add($ContractButton)
+                                    
+                                    #Add related queries as a button onto related queries panel
                                     Foreach($Rq in $RelatedQueries)
                                     {
-
+                                    
                                         $Global:RelatedQueryButton = New-Object System.Windows.Forms.Button
                                         $RelatedQueryButton.Text = (Get-Culture).TextInfo.ToTitleCase("$Rq")
                                         $RelatedQueryButton.AutoSize = $True
@@ -86,7 +91,7 @@
                                         $RelatedQueryButton.FlatAppearance.BorderSize = 1
                                         $RelatedQueryButton.FlatAppearance.MouseOverBackColor = 'lightyellow'
                                         $RelatedQueryButton.AutoSizeMode = 'GrowAndShrink'
-
+                                    
                                         $RelatedQueryButton.Add_Click({
                                     
                                                                         $Panel2.Visible = $False
@@ -98,24 +103,29 @@
                                                                         $ProgressBar.value = 0
                                                                         $StatusPanel.Visible = $True                              
                                                                         DisplayResults $(Invoke-WolframAlphaAPI $Rq)
+                                                                        $ExpanderButton.Visible = $true
+                                                                        $ContractButton.Visible = $False
                                                                         $Panel2.Visible = $True
                                                                         $Button.Enabled = $True
                                                                         $StatusPanel.controls.remove($ProgressBar)
-
+                                                                        #$RelatedQueriesPanel.Controls.Clear()
+                                                                        #$RelatedQueriesPanel.Controls.Add($ExpanderButton)
+                                    
                                         }.GetNewClosure())
-
+                                    
                                         $RelatedQueriesPanel.controls.add($RelatedQueryButton)
                                     }
-                                    
+                                                                        
                                     $ContractButton.Visible = $True  
                                     $ExpanderButton.Visible = $False
     }
 
     $RelatedQueryContractEventHandler = [System.EventHandler]{
 
-                                                             $RelatedQueriesPanel.Controls.Remove($RelatedQueryButton)
+                                                             $RelatedQueriesPanel.Controls.Clear()
+                                                             $RelatedQueriesPanel.Controls.add($ExpanderButton)
                                                              $ExpanderButton.Visible = $True
-                                                             $ContractButton.Visible = $False
+                                                             #$ContractButton.Visible = $False
     }
 
 #endregion Event Handlers
@@ -149,7 +159,8 @@
     $Form.Width = 550
     $Form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Get-Process -id $pid | Select-Object -ExpandProperty Path))                    
     $Form.AutoScroll = $True
-    $Form.AcceptButton = $Button
+    $Form.EnabledChanged
+    #$Form.AcceptButton = $Button
     
     #Define the Base Panel on which we'll add 4 sub panels
     $RootPanel = new-object System.Windows.Forms.FlowLayoutPanel
@@ -203,9 +214,10 @@
             $ProgressBar.Minimum = 0
             $ProgressBar.Height = 10
             $ProgressBar.Width = 500
-            $ProgressBar.ForeColor = 'Blue'
-            $ProgressBar.Style = 'block'
+            $ProgressBar.BackColor = 'Blue'
+            $ProgressBar.Style = 'Blocks'
             $ProgressBar.Visible = $true
+            $ProgressBar.Enabled
         
         #endregion StatusPanel Items
 
@@ -331,7 +343,20 @@
         {
             If($Result.success -eq $True)
             {
-    
+
+                #Fetch related queries 
+                $Global:RelatedQueries =  (Invoke-RestMethod -Uri $Result.related -Verbose).relatedqueries.relatedquery
+                #write-host $RelatedQueries
+
+                #If related queries exist
+                if($result.related -and $RelatedQueries)
+                {
+                    #Expand/Contract functionality for Related queries
+                    $RelatedQueriesPanel.Controls.Add($ExpanderButton)                
+                    $RelatedQueriesPanel.Controls.Add($ContractButton)
+                }
+                
+                 
                 #Formula to calculate Progress bar increment each time a Sub Pod is parsed
                 $Increment = (100/[int]$Result.numpods)
     
@@ -353,10 +378,6 @@
                 $StatusLabel.Font = $Italicfont
                 $StatusLabel.ForeColor = "mediumvioletred"
                 $StatusPanel.Controls.Add($StatusLabel)
-
-                #Expand/Contract functionality for Related queries
-                $RelatedQueriesPanel.Controls.Add($ExpanderButton)                
-                $RelatedQueriesPanel.Controls.Add($ContractButton)
     
                 If($Result.warnings.spellcheck.text)
                 {
