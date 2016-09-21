@@ -8,6 +8,8 @@
                                     $RelatedQueriesPanel.Controls.Clear()
                                     $StatusPanel.Controls.clear()
                                     $StatusPanel.controls.add($ProgressBar)
+                                    $StatusLabel.Text = "Computing. . ."
+                                    $StatusPanel.controls.add($StatusLabel)
                                     $ProgressBar.value = 0
                                     $StatusPanel.Visible = $True
                                     $Button.Enabled = $False                                
@@ -123,6 +125,7 @@
     $RelatedQueryContractEventHandler = [System.EventHandler]{
 
                                                              $RelatedQueriesPanel.Controls.Clear()
+                                                             $RelatedQueriesPanel.Controls.add($RelatedQueryLabel)
                                                              $RelatedQueriesPanel.Controls.add($ExpanderButton)
                                                              $ExpanderButton.Visible = $True
                                                              #$ContractButton.Visible = $False
@@ -158,9 +161,11 @@
     $Form.Height = 500
     $Form.Width = 550
     $Form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Get-Process -id $pid | Select-Object -ExpandProperty Path))                    
-    $Form.AutoScroll = $True
+    $Form.AutoScroll = $true
     $Form.EnabledChanged
+    #$form.dock
     #$Form.AcceptButton = $Button
+   
     
     #Define the Base Panel on which we'll add 4 sub panels
     $RootPanel = new-object System.Windows.Forms.FlowLayoutPanel
@@ -205,11 +210,13 @@
     $Global:StatusPanel = new-object System.Windows.Forms.FlowLayoutPanel
     $StatusPanel.AutoSize = $True
     $StatusPanel.Visible = $False
+    $StatusPanel.FlowDirection = 'topdown'
+
 
         #region StatusPanel Items
             
             #Define the Progress Bar
-            $ProgressBar = New-Object System.Windows.Forms.ProgressBar
+            $Global:ProgressBar = New-Object System.Windows.Forms.ProgressBar
             $ProgressBar.Maximum = 100
             $ProgressBar.Minimum = 0
             $ProgressBar.Height = 10
@@ -218,7 +225,14 @@
             $ProgressBar.Style = 'Blocks'
             $ProgressBar.Visible = $true
             $ProgressBar.Enabled
-        
+            #$progressbar.Text
+
+            $StatusLabel = New-Object Windows.forms.label
+            $StatusLabel.AutoSize = $True
+            $StatusLabel.Visible = $True
+            $StatusLabel.Font = $Italicfont
+            $StatusLabel.ForeColor = "mediumvioletred"
+                    
         #endregion StatusPanel Items
 
     #Define Related Queries Panel
@@ -228,7 +242,12 @@
     $RelatedQueriesPanel.FlowDirection = 'TopDown'
 
         #region RelatedQueriesPanel Items
-        
+                
+                $RelatedQueryLabel =  New-Object System.Windows.Forms.Label
+                $RelatedQueryLabel.Font = $RegularFont
+                $RelatedQueryLabel.ForeColor = "navy"
+                $RelatedQueryLabel.AutoSize = $True
+
                 $ExpanderButton = New-Object System.Windows.Forms.Button
                 $ExpanderButton.Text = "+"
                 $ExpanderButton.Font = $RegularFont
@@ -264,6 +283,15 @@
                 $AutocompleteLabel.Font = $RegularFont
 
         #endregion Panel2 Items
+
+    $StatusBar = New-Object System.Windows.Forms.StatusBar
+    $StatusBar.Text = "LOL"
+    $StatusBar.Height = 22
+    $StatusBar.Width = 200
+    $StatusBar.Location = New-Object System.Drawing.Point( 0, 250 )
+    #$StatusBar.Dock = 'bottom'
+    $statusBar.Location = New-Object System.Drawing.Point(0, ($Form.Size.Height - 22))
+    $statusBar.Size = New-Object System.Drawing.Size($Form.Size.Width, 22)
     
 #endregion Variable Definition
 
@@ -333,6 +361,7 @@
         
         #Add Root Panel to the Form and display it.
         $Form.Controls.Add($RootPanel)
+        $Form.Controls.Add($StatusBar)
         [void]$Form.ShowDialog()      
     }
     
@@ -343,14 +372,19 @@
         {
             If($Result.success -eq $True)
             {
-
+                $StatusPanel.Controls.Add($StatusLabel)
+                $StatusLabel.Text = "Loading related queries"
                 #Fetch related queries 
                 $Global:RelatedQueries =  (Invoke-RestMethod -Uri $Result.related -Verbose).relatedqueries.relatedquery
-                #write-host $RelatedQueries
+                $StatusLabel.Text = "Found $($RelatedQueries.count) related queries"
 
                 #If related queries exist
                 if($result.related -and $RelatedQueries)
                 {
+                    $RelatedQueryLabel.Text = "Found $($RelatedQueries.count) related queries click '+' below to expand"
+                    
+                    $RelatedQueriesPanel.Controls.Add($RelatedQueryLabel)
+
                     #Expand/Contract functionality for Related queries
                     $RelatedQueriesPanel.Controls.Add($ExpanderButton)                
                     $RelatedQueriesPanel.Controls.Add($ContractButton)
@@ -365,19 +399,6 @@
                 $DataType= $($Result.datatypes)
                 $Timetaken =  $("{0:N2}" -f [decimal]$Result.timing)    
                 
-                $Global:StatusLabel = New-Object Windows.forms.label
-                $StatusLabel.AutoSize = $True
-                If($DataType)
-                {
-                    $StatusLabel.Text = "$DataType ( "+ $Timetaken + " Seconds )"
-                }
-                else
-                {
-                    $StatusLabel.Text = "Time : $Timetaken Seconds"
-                }
-                $StatusLabel.Font = $Italicfont
-                $StatusLabel.ForeColor = "mediumvioletred"
-                $StatusPanel.Controls.Add($StatusLabel)
     
                 If($Result.warnings.spellcheck.text)
                 {
@@ -431,9 +452,21 @@
                 #Increment the ProgressBar and display increasing values
                 $i=$i+$Increment
                 $ProgressBar.Value = $i
+                $StatusLabel.Text = "Loading Results : $([string][int]$i)%"
                 Write-host $i
     
                 }
+
+                If($DataType)
+                {
+                    $StatusLabel.Text = "$DataType ( "+ $Timetaken + " Seconds )"
+                }
+                else
+                {
+                    $StatusLabel.Text = "Time : $Timetaken Seconds"
+                }
+
+
             }
             ElseIf($Result.didyoumeans.didyoumean)
             {
