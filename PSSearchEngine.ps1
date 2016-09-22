@@ -10,7 +10,7 @@
                                     $StatusPanel.controls.add($ProgressBar)
                                     $StatusLabel.Text = "Computing. . ."
                                     $StatusPanel.controls.add($StatusLabel)
-                                    $ProgressBar.value = 0
+                                    $ProgressBar.value = 10
                                     $StatusPanel.Visible = $True
                                     $Button.Enabled = $False                                
                                     DisplayResults $(Invoke-WolframAlphaAPI $TextBox1.Text)
@@ -45,7 +45,10 @@
                                     $TextBox1.Text = $DidYouMeanText
                                     $DidYouMeanButton.visible = $False 
                                     $StatusPanel.Controls.clear()                               
-                                    $ProgressBar.value = 0
+                                    #$ProgressBar.value = 0
+                                    $StatusLabel.Text = "Computing. . ."
+                                    $StatusPanel.controls.add($StatusLabel)
+                                    $ProgressBar.value = 10
                                     $StatusPanel.Visible = $True
                                     DisplayResults $(Invoke-WolframAlphaAPI $DidYouMeanText)
                                     $Panel2.Visible = $True
@@ -374,9 +377,11 @@
             {
                 $StatusPanel.Controls.Add($StatusLabel)
                 $StatusLabel.Text = "Loading related queries"
+                $ProgressBar.Value = 30
                 #Fetch related queries 
                 $Global:RelatedQueries =  (Invoke-RestMethod -Uri $Result.related -Verbose).relatedqueries.relatedquery
                 $StatusLabel.Text = "Found $($RelatedQueries.count) related queries"
+                $ProgressBar.Value = 50
 
                 #If related queries exist
                 if($result.related -and $RelatedQueries)
@@ -392,9 +397,9 @@
                 
                  
                 #Formula to calculate Progress bar increment each time a Sub Pod is parsed
-                $Increment = (100/[int]$Result.numpods)
+                $Increment = (50/[int]$Result.numpods)
     
-                $i=0 #Initialize ProgressBar Value 
+                $i=50 #Initialize ProgressBar Value 
     
                 $DataType= $($Result.datatypes)
                 $Timetaken =  $("{0:N2}" -f [decimal]$Result.timing)    
