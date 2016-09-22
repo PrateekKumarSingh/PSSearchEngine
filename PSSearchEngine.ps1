@@ -8,12 +8,13 @@
                                     $RelatedQueriesPanel.Controls.Clear()
                                     $StatusPanel.Controls.clear()
                                     $StatusPanel.controls.add($ProgressBar)
-                                    $StatusLabel.Text = "Computing. . ."
                                     $StatusPanel.controls.add($StatusLabel)
                                     $ProgressBar.value = 10
                                     $StatusPanel.Visible = $True
-                                    $Button.Enabled = $False                                
+                                    $Button.Enabled = $False
+                                    $StatusLabel.Text = "Computing and Fetching Results"                                
                                     DisplayResults $(Invoke-WolframAlphaAPI $TextBox1.Text)
+                                    $ProgressBar.value = 20
                                     $Panel2.Visible = $True
                                     $Button.Enabled = $True
                                     $ExpanderButton.Visible = $True
@@ -45,12 +46,12 @@
                                     $TextBox1.Text = $DidYouMeanText
                                     $DidYouMeanButton.visible = $False 
                                     $StatusPanel.Controls.clear()                               
-                                    #$ProgressBar.value = 0
-                                    $StatusLabel.Text = "Computing. . ."
                                     $StatusPanel.controls.add($StatusLabel)
                                     $ProgressBar.value = 10
                                     $StatusPanel.Visible = $True
+                                    $StatusLabel.Text = "Computing and Fetching Results ..."
                                     DisplayResults $(Invoke-WolframAlphaAPI $DidYouMeanText)
+                                    $ProgressBar.value = 20
                                     $Panel2.Visible = $True
                                     $Button.Enabled = $True
                                     $StatusPanel.controls.remove($ProgressBar)
@@ -105,9 +106,12 @@
                                                                         $StatusPanel.Controls.clear() 
                                                                         $RelatedQueriesPanel.Controls.clear()
                                                                         $StatusPanel.controls.add($ProgressBar)
-                                                                        $ProgressBar.value = 0
-                                                                        $StatusPanel.Visible = $True                              
+                                                                        $StatusPanel.controls.add($StatusLabel)
+                                                                        $ProgressBar.value = 10
+                                                                        $StatusPanel.Visible = $True
+                                                                        $StatusLabel.Text = "Computing Fetching Results ..."
                                                                         DisplayResults $(Invoke-WolframAlphaAPI $Rq)
+                                                                        $ProgressBar.value = 20
                                                                         $ExpanderButton.Visible = $true
                                                                         $ContractButton.Visible = $False
                                                                         $Panel2.Visible = $True
@@ -165,10 +169,6 @@
     $Form.Width = 550
     $Form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Get-Process -id $pid | Select-Object -ExpandProperty Path))                    
     $Form.AutoScroll = $true
-    $Form.EnabledChanged
-    #$form.dock
-    #$Form.AcceptButton = $Button
-   
     
     #Define the Base Panel on which we'll add 4 sub panels
     $RootPanel = new-object System.Windows.Forms.FlowLayoutPanel
@@ -228,6 +228,7 @@
             $ProgressBar.Style = 'Blocks'
             $ProgressBar.Visible = $true
             $ProgressBar.Enabled
+            $ProgressBar.Value = 5
             #$progressbar.Text
 
             $StatusLabel = New-Object Windows.forms.label
@@ -253,20 +254,32 @@
 
                 $ExpanderButton = New-Object System.Windows.Forms.Button
                 $ExpanderButton.Text = "+"
-                $ExpanderButton.Font = $RegularFont
-                $ExpanderButton.AutoSize =$True
-                $ExpanderButton.AutoSizeMode = 'GrowAndShrink'
-                $ExpanderButton.AutoEllipsis = $True
+                $ExpanderButton.TextAlign = 'middlecenter'
+                $ExpanderButton.Font = $BoldFont
+                $ExpanderButton.Width = 25
+                $ExpanderButton.Height = 25
+                $ExpanderButton.BackColor = 'Black'
+                $ExpanderButton.ForeColor = 'White'
+                $ExpanderButton.FlatStyle = 'flat'
+                $ExpanderButton.FlatAppearance.BorderColor = 'Black'
+                $ExpanderButton.FlatAppearance.BorderSize = 1
+                $ExpanderButton.FlatAppearance.MouseOverBackColor = 'gray'
                 $ExpanderButton.add_click($RelatedQueryExpanderEventHandler)
 
                 
                 $ContractButton = New-Object System.Windows.Forms.Button
                 $ContractButton.Visible = $False
                 $ContractButton.Text = "-"
-                $ContractButton.Font = $RegularFont
-                $ContractButton.AutoSize =$True
-                $ContractButton.AutoSizeMode = 'GrowAndShrink'
-                $ContractButton.AutoEllipsis = $True
+                $ContractButton.TextAlign = 'middlecenter'
+                $ContractButton.Font = $BoldFont
+                $ContractButton.width = 25
+                $ContractButton.Height = 25
+                $ContractButton.BackColor = 'Black'
+                $ContractButton.ForeColor = 'White'
+                $ContractButton.FlatStyle = 'flat'
+                $ContractButton.FlatAppearance.BorderColor = 'Black'
+                $ContractButton.FlatAppearance.BorderSize = 1
+                $ContractButton.FlatAppearance.MouseOverBackColor = 'gray'
                 $ContractButton.add_click($RelatedQueryContractEventHandler)
         
         #endregion RelatedQueriespanelItem
@@ -286,15 +299,6 @@
                 $AutocompleteLabel.Font = $RegularFont
 
         #endregion Panel2 Items
-
-    $StatusBar = New-Object System.Windows.Forms.StatusBar
-    $StatusBar.Text = "LOL"
-    $StatusBar.Height = 22
-    $StatusBar.Width = 200
-    $StatusBar.Location = New-Object System.Drawing.Point( 0, 250 )
-    #$StatusBar.Dock = 'bottom'
-    $statusBar.Location = New-Object System.Drawing.Point(0, ($Form.Size.Height - 22))
-    $statusBar.Size = New-Object System.Drawing.Size($Form.Size.Width, 22)
     
 #endregion Variable Definition
 
@@ -364,7 +368,6 @@
         
         #Add Root Panel to the Form and display it.
         $Form.Controls.Add($RootPanel)
-        $Form.Controls.Add($StatusBar)
         [void]$Form.ShowDialog()      
     }
     
@@ -376,23 +379,23 @@
             If($Result.success -eq $True)
             {
                 $StatusPanel.Controls.Add($StatusLabel)
-                $StatusLabel.Text = "Loading related queries"
                 $ProgressBar.Value = 30
+                $ProgressBar.Refresh()
+
+                $StatusLabel.Text = "Loading related queries"
+
                 #Fetch related queries 
-                $Global:RelatedQueries =  (Invoke-RestMethod -Uri $Result.related -Verbose).relatedqueries.relatedquery
-                $StatusLabel.Text = "Found $($RelatedQueries.count) related queries"
-                $ProgressBar.Value = 50
+                $Global:RelatedQueries =  (Invoke-RestMethod -Uri $Result.related).relatedqueries.relatedquery
 
                 #If related queries exist
                 if($result.related -and $RelatedQueries)
                 {
                     $RelatedQueryLabel.Text = "Found $($RelatedQueries.count) related queries click '+' below to expand"
-                    
-                    $RelatedQueriesPanel.Controls.Add($RelatedQueryLabel)
 
                     #Expand/Contract functionality for Related queries
                     $RelatedQueriesPanel.Controls.Add($ExpanderButton)                
                     $RelatedQueriesPanel.Controls.Add($ContractButton)
+                    $RelatedQueriesPanel.Controls.Add($RelatedQueryLabel)
                 }
                 
                  
@@ -400,6 +403,7 @@
                 $Increment = (50/[int]$Result.numpods)
     
                 $i=50 #Initialize ProgressBar Value 
+                $StatusLabel.Text = "Generating Output"
     
                 $DataType= $($Result.datatypes)
                 $Timetaken =  $("{0:N2}" -f [decimal]$Result.timing)    
@@ -457,8 +461,6 @@
                 #Increment the ProgressBar and display increasing values
                 $i=$i+$Increment
                 $ProgressBar.Value = $i
-                $StatusLabel.Text = "Loading Results : $([string][int]$i)%"
-                Write-host $i
     
                 }
 
@@ -471,10 +473,10 @@
                     $StatusLabel.Text = "Time : $Timetaken Seconds"
                 }
 
-
             }
             ElseIf($Result.didyoumeans.didyoumean)
             {
+                $StatusPanel.Visible = $False
                 $DidYouMeans =  $Result.didyoumeans.didyoumean
                             
                 $Global:DidYouMeanLabel = New-Object System.Windows.Forms.Label
@@ -534,9 +536,21 @@
                         $TipsLabel.Text = "TIP : $($tip.Text)"
                         $TipsLabel.AutoSize = $True
                         $TipsLabel.ForeColor = 'Navy'
+                        $StatusPanel.Visible = $False
                         $Panel2.Controls.Add($tipsLabel)
                     }
             }
+            else
+            {
+                $Label = New-Object System.Windows.Forms.Label
+                $Label.Text = "No Results Found."
+                $Label.AutoSize = $True
+                $Label.Font = $ItalicFontBig
+                $Label.ForeColor = 'Navy'
+                $StatusPanel.Visible = $False
+                $Panel2.Controls.Add($Label)
+            }
+
         }
         catch
         {
@@ -545,6 +559,7 @@
             $Label.AutoSize = $True
             $Label.Font = $ItalicFontBig
             $Label.ForeColor = 'red'
+            $StatusPanel.Visible = $False
             $Panel2.Controls.Add($Label)
         
         }
