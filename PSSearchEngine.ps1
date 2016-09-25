@@ -12,7 +12,7 @@
                                     $ProgressBar.value = 10
                                     $StatusPanel.Visible = $True
                                     $Button.Enabled = $False
-                                    $StatusLabel.Text = "Computing and Fetching Results"                                
+                                    $StatusLabel.Text = "Computing and Fetching Results"                             
                                     DisplayResults $(Invoke-WolframAlphaAPI $TextBox1.Text)
                                     $ProgressBar.value = 20
                                     $Panel2.Visible = $True
@@ -26,17 +26,23 @@
                                   }
     
     $SaveEventHandler = [System.EventHandler]{
-    
-                                    Get-Html $result | Out-File "$env:TEMP\$Query.html"
-                                    $StatusPanel.controls.clear()
-                                    $StatusPanel.controls.add($StatusLabel)
-                                    $StatusLabel.text = "Saved as File : "
-                                    $LinkLabel = New-Object System.Windows.Forms.LinkLabel
-                                    $LinkLabel.Text = "$env:TEMP\$Query.html  "
-                                    $LinkLabel.AutoSize = $true
-                                    $LinkLabel.Font = $ItalicFont
-                                    $LinkLabel.add_Click({Invoke-Item "$env:TEMP\$Query.html"})
-                                    $StatusPanel.Controls.Add($LinkLabel)
+
+
+                                    $SaveFileDialog.FileName = "$($TextBox1.text).htm"
+                                    
+                                    If($SaveFileDialog.showdialog() -eq "OK")
+                                    {
+                                        Get-Html $result | Out-File $SaveFileDialog.filename -Verbose
+                                        $StatusPanel.controls.clear()
+                                        $StatusPanel.controls.add($StatusLabel)
+                                        $StatusLabel.text = "Saved as File : "
+                                        $LinkLabel = New-Object System.Windows.Forms.LinkLabel
+                                        $LinkLabel.Text = $SaveFileDialog.filename
+                                        $LinkLabel.AutoSize = $true
+                                        $LinkLabel.Font = $ItalicFont
+                                        $LinkLabel.add_Click({Invoke-Item $SaveFileDialog.filename })
+                                        $StatusPanel.Controls.Add($LinkLabel)
+                                    }
     }
     
     $DidYouMeanEventHandler =[System.EventHandler]{
@@ -152,7 +158,8 @@
     $ItalicFont = New-Object System.Drawing.Font($FontFamily,8,[System.Drawing.FontStyle]::Italic) 
     $ItalicFontBig = New-Object System.Drawing.Font($FontFamily,10,[System.Drawing.FontStyle]::Italic) 
     $RegularFont = New-Object System.Drawing.Font($FontFamily,10,[System.Drawing.FontStyle]::Regular) 
-    $RegularFontBig = New-Object System.Drawing.Font($FontFamily,11,[System.Drawing.FontStyle]::Regular) 
+    $RegularFontBig = New-Object System.Drawing.Font($FontFamily,11,[System.Drawing.FontStyle]::Regular)
+    $Bing = New-Object System.Drawing.Font($FontFamily,11,([System.Drawing.FontStyle]::Bold+[System.Drawing.FontStyle]::Italic)) 
     $BoldFont = New-Object System.Drawing.Font($FontFamily,11,[System.Drawing.FontStyle]::bold) 
     $BoldFontBig = New-Object System.Drawing.Font($FontFamily,13,[System.Drawing.FontStyle]::bold) 
     
@@ -207,6 +214,17 @@
             $SaveButton.Height =  40
             $SaveButton.Add_Click($SaveEventHandler)
 
+
+            $SaveFileDialog = New-Object windows.forms.savefiledialog   
+            $SaveFileDialog.InitialDirectory = [System.IO.Directory]::GetCurrentDirectory()   
+            $SaveFileDialog.Title = "Save Results as HTML"   
+            $SaveFileDialog.filter = "Html (*.html)| *.htm"   
+            #$SaveFileDialog.filter = "PublishSettings Files|*.publishsettings|All Files|*.*" 
+            #$SaveFileDialog.Filter = "Log Files|*.Log|PublishSettings Files|*.publishsettings|All Files|*.*" 
+            $SaveFileDialog.ShowHelp = $true
+            $SaveFileDialog.DefaultExt = "htm"
+            #$SaveFileDialog.AddExtension = "html"
+
         #endregion Panel1 items
 
     #Define Status Panel
@@ -232,6 +250,7 @@
             #$progressbar.Text
 
             $StatusLabel = New-Object Windows.forms.label
+            $statuslabel.width = 400
             $StatusLabel.AutoSize = $True
             $StatusLabel.Visible = $True
             $StatusLabel.Font = $Italicfont
@@ -345,8 +364,7 @@
         }
         "</body>"
         "</html>"
-    }
-    
+    }   
     
     #Main Funtion to Create the Basic form and its Structure.
     Function Main
@@ -380,25 +398,24 @@
             {
                 $StatusPanel.Controls.Add($StatusLabel)
                 $ProgressBar.Value = 30
-                $ProgressBar.Refresh()
 
                 $StatusLabel.Text = "Loading related queries"
 
                 #Fetch related queries 
-                $Global:RelatedQueries =  (Invoke-RestMethod -Uri $Result.related).relatedqueries.relatedquery
+                $Global:RelatedQueries =  (Invoke-RestMethod -Uri $Result.related -Verbose).relatedqueries.relatedquery
+                $BingResults =  Search-Bing -Query $TextBox1.Text -Count 5 -Verbose
+
 
                 #If related queries exist
                 if($result.related -and $RelatedQueries)
                 {
                     $RelatedQueryLabel.Text = "Found $($RelatedQueries.count) related queries click '+' below to expand"
-
+                    $RelatedQueriesPanel.Controls.Add($RelatedQueryLabel)
                     #Expand/Contract functionality for Related queries
                     $RelatedQueriesPanel.Controls.Add($ExpanderButton)                
                     $RelatedQueriesPanel.Controls.Add($ContractButton)
-                    $RelatedQueriesPanel.Controls.Add($RelatedQueryLabel)
                 }
-                
-                 
+                                
                 #Formula to calculate Progress bar increment each time a Sub Pod is parsed
                 $Increment = (50/[int]$Result.numpods)
     
@@ -471,6 +488,61 @@
                 else
                 {
                     $StatusLabel.Text = "Time : $Timetaken Seconds"
+                }
+
+                    $BingTitle = New-Object System.Windows.Forms.Label
+                    $BingTitle.AutoSize = $True
+                    $BingTitle.Text = "BING RESULTS"
+                    $BingTitle.Font = $BoldFontBig
+                    $Panel2.Controls.Add($BingTitle)
+
+
+                Foreach($R in $BingResults)
+                {
+                    $BingResultLabel = New-Object System.Windows.Forms.Label
+                    $BingResultLabel.AutoSize = $True
+                    $BingResultLabel.Text = (Get-Culture).TextInfo.ToTitleCase("$($R.result)")
+                    $BingResultLabel.Font = $Bing
+                    $BingResultLabel.ForeColor = 'slategray'
+                    $BingResultLabel.Padding = 0
+                    #$BingResultLabel.Margin = 0
+                    $BingResultLabel.UseCompatibleTextRendering =$True
+                    #$BingResultLabel.TextAlign = 'middleleft'
+                    $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.result,$BoldFont)
+                    $BingResultLabel.Height = $RenderedText.height
+                    $BingResultLabel.Width = $RenderedText.width
+
+                    $BingSnippetLabel = New-Object System.Windows.Forms.Label
+                    $BingSnippetLabel.AutoSize = $True
+                    $BingSnippetLabel.Text = $R.snippet
+                    $BingSnippetLabel.Font = $ItalicFont
+                    $BingSnippetLabel.Padding = [System.Windows.Forms.Padding]::new(4,0,0,0)
+                    #$BingSnippetLabel.Margin = 0
+                    $BingSnippetLabel.UseCompatibleTextRendering =$True
+                    #$BingSnippetLabel.TextAlign = 'Middleleft'
+                    $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.Snippet,$ItalicFont)
+                    $BingSnippetLabel.Height = $RenderedText.height
+                    $BingSnippetLabel.Width = $RenderedText.width
+                    $BingSnippetLabel.Margin = [System.Windows.Forms.Padding]::new(0,0,0,10)
+                    $BingSnippetLabel.MaximumSize = [System.Windows.Size]::new(100,0)
+                    
+
+                    $BingLinkLabel = New-Object System.Windows.Forms.LinkLabel
+                    $BingLinkLabel.AutoSize = $True
+                    $BingLinkLabel.Text = $R.URL
+                    $BingLinkLabel.add_Click({Start-Process $r.url}.GetNewClosure())
+                    $BingLinkLabel.Font = $RegularFont
+                    $BingLinkLabel.Padding = 0
+                    #$BingLinkLabel.Margin = 0
+                    $BingLinkLabel.UseCompatibleTextRendering =$True
+                    #$BingLinkLabel.TextAlign= "Middleleft"
+                    $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.URL,$RegularFont)
+                    $BingLinkLabel.Height = $RenderedText.height
+                    $BingLinkLabel.Width = $RenderedText.width
+
+                    $Panel2.Controls.Add($BingResultLabel)
+                    $Panel2.Controls.Add($BingLinkLabel)
+                    $Panel2.Controls.Add($BingSnippetLabel)
                 }
 
             }
