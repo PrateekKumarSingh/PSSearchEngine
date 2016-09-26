@@ -37,7 +37,7 @@
                                         $StatusPanel.controls.add($StatusLabel)
                                         $StatusLabel.text = "Saved as File : "
                                         $LinkLabel = New-Object System.Windows.Forms.LinkLabel
-                                        $LinkLabel.Text = $SaveFileDialog.filename
+                                        $LinkLabel.Text = "$($SaveFileDialog.filename) "
                                         $LinkLabel.AutoSize = $true
                                         $LinkLabel.Font = $ItalicFont
                                         $LinkLabel.add_Click({Invoke-Item $SaveFileDialog.filename })
@@ -172,8 +172,8 @@
     $Form.MaximizeBox = $False
     $Form.WindowState = "Normal"
     $Form.StartPosition = "CenterScreen"
-    $Form.Height = 500
-    $Form.Width = 550
+    $Form.Height = 600
+    $Form.Width = 650
     $Form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Get-Process -id $pid | Select-Object -ExpandProperty Path))                    
     $Form.AutoScroll = $true
     
@@ -212,6 +212,7 @@
             #Define Save Button
             $SaveButton = New-Object System.Windows.Forms.Button
             $SaveButton.text = "Save"    
+            #$SaveButton.Image = [System.Drawing.Image]::FromFile("C:\Data\save.png")
             $SaveButton.Font = $BoldFontBig
             $SaveButton.Height =  40
             $SaveButton.Add_Click($SaveEventHandler)
@@ -341,7 +342,8 @@
     {
     
         "<html>"
-        "<body>"            
+        "<body>"
+        #Wolfram Results Alpha to static HTML            
         Foreach($p in $Result.pod)
         {
             $subpod = $p.subpod
@@ -364,6 +366,26 @@
                 }
                #"<hr>"
         }
+
+        If($BingResults)
+        {
+            "<h3>BING RESULTS</h3>"
+            
+            #Bing Results to static HTML            
+            Foreach($R in $BingResults)
+            {
+                $URL = $R.URL
+
+                If(-not($URL.StartsWith("http://") -or $URL.StartsWith("https://")))
+                {
+                    $URL = "http://$URL"
+                }
+                "<Font size=`"4`"><Bold>$((Get-Culture).TextInfo.ToTitleCase("$($R.result)"))<Bold></Font><br>"
+                "<Font size=`"3`"><A href=`"$URL`">$URL</a></font>"
+                "<P><I>$($R.snippet)</I></P>"
+            }
+        }
+
         "</body>"
         "</html>"
     }   
@@ -390,13 +412,74 @@
         $Form.Controls.Add($RootPanel)
         [void]$Form.ShowDialog()      
     }
+
+    Function BingResults
+    {
+                If($StatusLabel.Text -notlike "*seconds*")
+                {
+                    $StatusLabel.Text = "Top 5 Results ( $("{0:N2}" -f $BingComputeTime) Seconds )"
+                }
+
+                $BingTitle = New-Object System.Windows.Forms.Label
+                $BingTitle.AutoSize = $True
+                $BingTitle.Text = "BING RESULTS"
+                $BingTitle.Font = $BoldFontBig
+                $Panel2.Controls.Add($BingTitle)
+
+                Foreach($R in $BingResults)
+                {
+                    $BingResultLabel = New-Object System.Windows.Forms.Label
+                    $BingResultLabel.AutoSize = $True
+                    $BingResultLabel.Text = (Get-Culture).TextInfo.ToTitleCase("$($R.result)")
+                    $BingResultLabel.Font = $Bing
+                    $BingResultLabel.ForeColor = 'slategray'
+                    $BingResultLabel.Padding = 0
+                    #$BingResultLabel.Margin = 0
+                    $BingResultLabel.UseCompatibleTextRendering =$True
+                    #$BingResultLabel.TextAlign = 'middleleft'
+                    $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.result,$BoldFont)
+                    $BingResultLabel.Height = $RenderedText.height
+                    $BingResultLabel.Width = $RenderedText.width
+
+                    $BingSnippetLabel = New-Object System.Windows.Forms.Label
+                    $BingSnippetLabel.AutoSize = $True
+                    $BingSnippetLabel.Text = ($R.snippet) #-replace ". ", ".`n"
+                    $BingSnippetLabel.Font = $ItalicFont
+                    $BingSnippetLabel.Padding = [System.Windows.Forms.Padding]::new(4,0,0,0)
+                    #$BingSnippetLabel.Margin = 0
+                    $BingSnippetLabel.UseCompatibleTextRendering =$True
+                    #$BingSnippetLabel.TextAlign = 'Middleleft'
+                    $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.Snippet,$ItalicFont)
+                    $BingSnippetLabel.Height = $RenderedText.height
+                    $BingSnippetLabel.Width = $RenderedText.width
+                    $BingSnippetLabel.Margin = [System.Windows.Forms.Padding]::new(0,0,0,10)
+                    $BingSnippetLabel.MaximumSize = [System.drawing.Size]::new(600,0)
+                    
+                    $BingLinkLabel = New-Object System.Windows.Forms.LinkLabel
+                    $BingLinkLabel.AutoSize = $True
+                    $BingLinkLabel.Text = $R.URL
+                    $BingLinkLabel.add_Click({Start-Process $r.url}.GetNewClosure())
+                    $BingLinkLabel.Font = $RegularFont
+                    $BingLinkLabel.Padding = 0
+                    #$BingLinkLabel.Margin = 0
+                    $BingLinkLabel.UseCompatibleTextRendering =$True
+                    #$BingLinkLabel.TextAlign= "Middleleft"
+                    $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.URL,$RegularFont)
+                    $BingLinkLabel.Height = $RenderedText.height
+                    $BingLinkLabel.Width = $RenderedText.width
+
+                    $Panel2.Controls.Add($BingResultLabel)
+                    $Panel2.Controls.Add($BingLinkLabel)
+                    $Panel2.Controls.Add($BingSnippetLabel)
+                }
+    }
     
     #Function to Create the data structure for Output on Panel 3
     Function DisplayResults($Global:Result)
     {
         #Try
         #{
-            $BingTime = Measure-Command { $BingResults =  Search-Bing -Query $TextBox1.Text -Count 5 -Verbose }
+            $Global:BingComputeTime = (Measure-Command { $Global:BingResults =  Search-Bing -Query $TextBox1.Text -Count 5 -Verbose }).TotalSeconds
 
             If($Result.success -eq $True)
             {
@@ -425,7 +508,7 @@
                 $StatusLabel.Text = "Generating Output"
     
                 $DataType= $($Result.datatypes)
-                $Timetaken =  $("{0:N2}" -f [decimal]$Result.timing)    
+                $WolframComputeTime =  [decimal]$Result.timing
                 
     
                 If($Result.warnings.spellcheck.text)
@@ -485,11 +568,16 @@
 
                 If($DataType)
                 {
-                    $StatusLabel.Text = "$DataType ( "+ $Timetaken + " Seconds )"
+                    $StatusLabel.Text = "$DataType ( "+ $("{0:N2}" -f ($WolframComputeTime+$BingComputeTime)) + " Seconds )"
                 }
                 else
                 {
-                    $StatusLabel.Text = "Time : $Timetaken Seconds"
+                    $StatusLabel.Text = "Time : $("{0:N2}" -f ($WolframComputeTime+$BingComputeTime)) Seconds"
+                }
+
+                If($BingResults)
+                {
+                    BingResults   
                 }
 
             }
@@ -543,66 +631,9 @@
                 }
 
             }
-            elseif($BingResults)
+            ElseIf($BingResults)
             {
-                If($StatusLabel.Text -notlike "*seconds*")
-                {
-                    $StatusLabel.Text = "Top 5 Results ( $("{0:N2}" -f $BingTime.TotalSeconds) Seconds )"
-                }
-
-                $BingTitle = New-Object System.Windows.Forms.Label
-                $BingTitle.AutoSize = $True
-                $BingTitle.Text = "BING RESULTS"
-                $BingTitle.Font = $BoldFontBig
-                $Panel2.Controls.Add($BingTitle)
-
-                Foreach($R in $BingResults)
-                {
-                    $BingResultLabel = New-Object System.Windows.Forms.Label
-                    $BingResultLabel.AutoSize = $True
-                    $BingResultLabel.Text = (Get-Culture).TextInfo.ToTitleCase("$($R.result)")
-                    $BingResultLabel.Font = $Bing
-                    $BingResultLabel.ForeColor = 'slategray'
-                    $BingResultLabel.Padding = 0
-                    #$BingResultLabel.Margin = 0
-                    $BingResultLabel.UseCompatibleTextRendering =$True
-                    #$BingResultLabel.TextAlign = 'middleleft'
-                    $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.result,$BoldFont)
-                    $BingResultLabel.Height = $RenderedText.height
-                    $BingResultLabel.Width = $RenderedText.width
-
-                    $BingSnippetLabel = New-Object System.Windows.Forms.Label
-                    $BingSnippetLabel.AutoSize = $True
-                    $BingSnippetLabel.Text = ($R.snippet) #-replace ". ", ".`n"
-                    $BingSnippetLabel.Font = $ItalicFont
-                    $BingSnippetLabel.Padding = [System.Windows.Forms.Padding]::new(4,0,0,0)
-                    #$BingSnippetLabel.Margin = 0
-                    $BingSnippetLabel.UseCompatibleTextRendering =$True
-                    #$BingSnippetLabel.TextAlign = 'Middleleft'
-                    $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.Snippet,$ItalicFont)
-                    $BingSnippetLabel.Height = $RenderedText.height
-                    $BingSnippetLabel.Width = $RenderedText.width
-                    $BingSnippetLabel.Margin = [System.Windows.Forms.Padding]::new(0,0,0,10)
-                    $BingSnippetLabel.MaximumSize = [System.drawing.Size]::new(500,0)
-                    
-                    $BingLinkLabel = New-Object System.Windows.Forms.LinkLabel
-                    $BingLinkLabel.AutoSize = $True
-                    $BingLinkLabel.Text = $R.URL
-                    $BingLinkLabel.add_Click({Start-Process $r.url}.GetNewClosure())
-                    $BingLinkLabel.Font = $RegularFont
-                    $BingLinkLabel.Padding = 0
-                    #$BingLinkLabel.Margin = 0
-                    $BingLinkLabel.UseCompatibleTextRendering =$True
-                    #$BingLinkLabel.TextAlign= "Middleleft"
-                    $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.URL,$RegularFont)
-                    $BingLinkLabel.Height = $RenderedText.height
-                    $BingLinkLabel.Width = $RenderedText.width
-
-                    $Panel2.Controls.Add($BingResultLabel)
-                    $Panel2.Controls.Add($BingLinkLabel)
-                    $Panel2.Controls.Add($BingSnippetLabel)
-                }
-
+                BingResults
             }
             ElseIf($Result.tips.tip)
             {
@@ -630,6 +661,8 @@
                 $StatusPanel.Visible = $False
                 $Panel2.Controls.Add($Label)
             }
+
+
 
         #}
         #catch
