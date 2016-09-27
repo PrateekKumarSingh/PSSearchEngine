@@ -13,7 +13,7 @@
                                     $StatusPanel.Visible = $True
                                     $Button.Enabled = $False
                                     $StatusLabel.Text = "Computing and Fetching Results"                             
-                                    DisplayResults $(Invoke-WolframAlphaAPI $TextBox1.Text)
+                                    DisplayWolframResults $(Invoke-WolframAlphaAPI $TextBox1.Text)
                                     $ProgressBar.value = 20
                                     $Panel2.Visible = $True
                                     $Button.Enabled = $True
@@ -56,7 +56,7 @@
                                     $ProgressBar.value = 10
                                     $StatusPanel.Visible = $True
                                     $StatusLabel.Text = "Computing and Fetching Results ..."
-                                    DisplayResults $(Invoke-WolframAlphaAPI $DidYouMeanText)
+                                    DisplayWolframResults $(Invoke-WolframAlphaAPI $DidYouMeanText)
                                     $ProgressBar.value = 20
                                     $Panel2.Visible = $True
                                     $Button.Enabled = $True
@@ -116,7 +116,7 @@
                                                                         $ProgressBar.value = 10
                                                                         $StatusPanel.Visible = $True
                                                                         $StatusLabel.Text = "Computing Fetching Results ..."
-                                                                        DisplayResults $(Invoke-WolframAlphaAPI $Rq)
+                                                                        DisplayWolframResults = $(Invoke-WolframAlphaAPI $Rq)
                                                                         $ProgressBar.value = 20
                                                                         $ExpanderButton.Visible = $true
                                                                         $ContractButton.Visible = $False
@@ -138,7 +138,6 @@
     $RelatedQueryContractEventHandler = [System.EventHandler]{
 
                                                              $RelatedQueriesPanel.Controls.Clear()
-                                                             $RelatedQueriesPanel.Controls.add($RelatedQueryLabel)
                                                              $RelatedQueriesPanel.Controls.add($ExpanderButton)
                                                              $ExpanderButton.Visible = $True
                                                              #$ContractButton.Visible = $False
@@ -155,6 +154,7 @@
     #Define Text Font object
     $FontFamily = "Lucida sans"
 
+    $ArialNarrow = New-Object System.Drawing.Font('Arial',8,[System.Drawing.FontStyle]::Italic) 
     $ItalicFont = New-Object System.Drawing.Font($FontFamily,8,[System.Drawing.FontStyle]::Italic) 
     $ItalicFontBig = New-Object System.Drawing.Font($FontFamily,10,[System.Drawing.FontStyle]::Italic) 
     $RegularFont = New-Object System.Drawing.Font($FontFamily,10,[System.Drawing.FontStyle]::Regular) 
@@ -198,7 +198,7 @@
             $TextBox1.Left = 10;
             $TextBox1.Top = 10;
             $TextBox1.Height = 40
-            $TextBox1.width = 340;
+            $TextBox1.width = 440;
             $TextBox1.Font = $BoldFontBig
             $TextBox1.add_keyup($AutoCompleteKeyupEventhandler) 
             
@@ -244,7 +244,7 @@
             $ProgressBar.Maximum = 100
             $ProgressBar.Minimum = 0
             $ProgressBar.Height = 10
-            $ProgressBar.Width = 500
+            $ProgressBar.Width = 600
             $ProgressBar.BackColor = 'Blue'
             $ProgressBar.Style = 'Blocks'
             $ProgressBar.Visible = $true
@@ -253,8 +253,8 @@
             #$progressbar.Text
 
             $StatusLabel = New-Object Windows.forms.label
-            $statuslabel.width = 400
-            $StatusLabel.AutoSize = $True
+            $statuslabel.width = 600
+            #$StatusLabel.AutoSize = $True
             $StatusLabel.Visible = $True
             $StatusLabel.Font = $Italicfont
             $StatusLabel.ForeColor = "mediumvioletred"
@@ -268,18 +268,13 @@
     $RelatedQueriesPanel.FlowDirection = 'TopDown'
 
         #region RelatedQueriesPanel Items
-                
-                $RelatedQueryLabel =  New-Object System.Windows.Forms.Label
-                $RelatedQueryLabel.Font = $RegularFont
-                $RelatedQueryLabel.ForeColor = "navy"
-                $RelatedQueryLabel.AutoSize = $True
 
                 $ExpanderButton = New-Object System.Windows.Forms.Button
-                $ExpanderButton.Text = "+"
                 $ExpanderButton.TextAlign = 'middlecenter'
-                $ExpanderButton.Font = $BoldFont
-                $ExpanderButton.Width = 25
-                $ExpanderButton.Height = 25
+                $ExpanderButton.Font = $ArialNarrow
+                #$ExpanderButton.Width = 25
+                #$ExpanderButton.Height = 25
+                $ExpanderButton.AutoSize = $true
                 $ExpanderButton.BackColor = 'Black'
                 $ExpanderButton.ForeColor = 'White'
                 $ExpanderButton.FlatStyle = 'flat'
@@ -291,11 +286,11 @@
                 
                 $ContractButton = New-Object System.Windows.Forms.Button
                 $ContractButton.Visible = $False
-                $ContractButton.Text = "-"
                 $ContractButton.TextAlign = 'middlecenter'
-                $ContractButton.Font = $BoldFont
-                $ContractButton.width = 25
-                $ContractButton.Height = 25
+                $ContractButton.Font = $ArialNarrow
+                #$ContractButton.width = 25
+                #$ContractButton.Height = 25
+                $ContractButton.AutoSize = $true
                 $ContractButton.BackColor = 'Black'
                 $ContractButton.ForeColor = 'White'
                 $ContractButton.FlatStyle = 'flat'
@@ -334,7 +329,7 @@
     #Function to fetch the data from Wolfram|Alpha API based on user query
     Function Invoke-WolframAlphaAPI($Global:Query)
     {
-    Return (Invoke-RestMethod -Uri "http://api.wolframalpha.com/v2/query?appid=46XTUT-6T5H7K4V32&input=$($Query.Replace(' ','%20'))").queryresult
+    Return (Invoke-RestMethod -Uri "http://api.wolframalpha.com/v2/query?appid=46XTUT-6T5H7K4V32&input=$($Query.Replace(' ','%20'))" -verbose).queryresult
     }
     
     #Extract Results to HTML fileh
@@ -386,34 +381,70 @@
             }
         }
 
+        If($WikiData)
+        {
+            
+            "<h3>RELATED WIKIPEDIA LINKS</h3>"
+            
+            #Bing Results to static HTML            
+            Foreach($Wiki in $WikiData)
+            {
+                If(-not($Wiki.StartsWith("http://") -or $Wiki.StartsWith("https://")))
+                {
+                    $Wiki = "http://$Wiki"
+                }
+                "<Font size=`"3`"><A href=`"$Wiki`">$Wiki</a></font>"
+            }
+            
+        }
+
         "</body>"
         "</html>"
     }   
     
-    #Main Funtion to Create the Basic form and its Structure.
-    Function Main
-    {    
-    
-        $Panel1.Controls.Add($TextBox1)
-        $Panel1.Controls.Add($Button)
-        $Panel1.Controls.Add($SaveButton)
-    
-        $Panel2.Controls.Add($AutocompleteLabel)
-    
-        $StatusPanel.Controls.Add($ProgressBar)
+    Function Get-ContentSummary
+    {
+        $Summary = Foreach($p in $Result.pod)
+        {
+            $p.title
+            foreach($s in $p.subpod)
+            {
+               $s.plaintext
+            }     
+        }
 
-        #Add all panels to the root Panel, so that the flow direction is Top to Down.    
-        $RootPanel.Controls.Add($Panel1)
-        $RootPanel.Controls.Add($StatusPanel)
-        $RootPanel.Controls.Add($RelatedQueriesPanel)
-        $RootPanel.Controls.Add($Panel2)
-        
-        #Add Root Panel to the Form and display it.
-        $Form.Controls.Add($RootPanel)
-        [void]$Form.ShowDialog()      
+        $summary += ($BingResults).snippet
+
+        [string]$summary
     }
 
-    Function BingResults
+    Function Get-RelatedWikipediaLink($Wikidata)
+    {
+        $WikiLinkTitleLabel = New-Object System.Windows.Forms.Label
+        $WikiLinkTitleLabel.Text = "RELATED WIKIPEDIA LINKS"
+        $WikiLinkTitleLabel.AutoSize = $True
+        $WikiLinkTitleLabel.Font = $BoldFontBig
+        
+        $Panel2.Controls.Add($WikiLinkTitleLabel)
+        
+        Foreach($wiki in $Wikidata)
+        {
+            $WikiLinkLabel = New-Object System.Windows.Forms.LinkLabel
+            $WikiLinkLabel.Text = $wiki
+            $WikiLinkLabel.Autosize = $true
+            $WikiLinkLabel.add_Click({Start-Process $wiki}.GetNewClosure())
+            $WikiLinkLabel.Font = $RegularFont
+            $WikiLinkLabel.Padding = 0
+            #$WikiLinkLabel.UseCompatibleTextRendering =$True
+            #$RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($wiki,$RegularFont)
+            #$WikiLinkLabel.Height = $RenderedText.height
+            #$WikiLinkLabel.Width = $RenderedText.width
+
+            $Panel2.Controls.Add($WikiLinkLabel)
+        }
+    }
+
+    Function DisplayBingResults
     {
                 If($StatusLabel.Text -notlike "*seconds*")
                 {
@@ -434,9 +465,7 @@
                     $BingResultLabel.Font = $Bing
                     $BingResultLabel.ForeColor = 'slategray'
                     $BingResultLabel.Padding = 0
-                    #$BingResultLabel.Margin = 0
                     $BingResultLabel.UseCompatibleTextRendering =$True
-                    #$BingResultLabel.TextAlign = 'middleleft'
                     $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.result,$BoldFont)
                     $BingResultLabel.Height = $RenderedText.height
                     $BingResultLabel.Width = $RenderedText.width
@@ -446,9 +475,7 @@
                     $BingSnippetLabel.Text = ($R.snippet) #-replace ". ", ".`n"
                     $BingSnippetLabel.Font = $ItalicFont
                     $BingSnippetLabel.Padding = [System.Windows.Forms.Padding]::new(4,0,0,0)
-                    #$BingSnippetLabel.Margin = 0
                     $BingSnippetLabel.UseCompatibleTextRendering =$True
-                    #$BingSnippetLabel.TextAlign = 'Middleleft'
                     $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.Snippet,$ItalicFont)
                     $BingSnippetLabel.Height = $RenderedText.height
                     $BingSnippetLabel.Width = $RenderedText.width
@@ -461,9 +488,7 @@
                     $BingLinkLabel.add_Click({Start-Process $r.url}.GetNewClosure())
                     $BingLinkLabel.Font = $RegularFont
                     $BingLinkLabel.Padding = 0
-                    #$BingLinkLabel.Margin = 0
                     $BingLinkLabel.UseCompatibleTextRendering =$True
-                    #$BingLinkLabel.TextAlign= "Middleleft"
                     $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.URL,$RegularFont)
                     $BingLinkLabel.Height = $RenderedText.height
                     $BingLinkLabel.Width = $RenderedText.width
@@ -475,17 +500,24 @@
     }
     
     #Function to Create the data structure for Output on Panel 3
-    Function DisplayResults($Global:Result)
+    Function DisplayWolframResults($Global:Result)
     {
         #Try
         #{
+            $StatusPanel.Controls.Add($StatusLabel)
+            $ProgressBar.Value = 30
+            $StatusLabel.Text = "Searching Query using Bing"
+
             $Global:BingComputeTime = (Measure-Command { $Global:BingResults =  Search-Bing -Query $TextBox1.Text -Count 5 -Verbose }).TotalSeconds
+
+            $ProgressBar.Value = 40
+            $StatusLabel.Text = "Searching Wikipedia for related information"
+
+            $Global:WikiData = Get-ContentSummary |Get-EntityLink| select 'wiki link' -ExpandProperty 'wiki link' -First 15
 
             If($Result.success -eq $True)
             {
-                $StatusPanel.Controls.Add($StatusLabel)
-                $ProgressBar.Value = 30
-
+                $ProgressBar.Value = 50
                 $StatusLabel.Text = "Loading related queries"
 
                 #Fetch related queries 
@@ -494,9 +526,10 @@
                 #If related queries exist
                 if($result.related -and $RelatedQueries)
                 {
-                    $RelatedQueryLabel.Text = "Found $($RelatedQueries.count) related queries click '+' below to expand"
-                    $RelatedQueriesPanel.Controls.Add($RelatedQueryLabel)
+                    
                     #Expand/Contract functionality for Related queries
+                    $ExpanderButton.Text = "Found $($RelatedQueries.count) Related queries $([char][int]'9660')"
+                    $ContractButton.Text = "Found $($RelatedQueries.count) Related queries $([char][int]'9650')"
                     $RelatedQueriesPanel.Controls.Add($ExpanderButton)                
                     $RelatedQueriesPanel.Controls.Add($ContractButton)
                 }
@@ -556,6 +589,7 @@
                                  $Label = New-Object Windows.forms.label
                                  $Label.AutoSize = $True
                                  $Label.Text = $s.plaintext
+                                 $Label.MaximumSize = [System.drawing.Size]::new(600,0)
                                  $Panel2.Controls.Add($Label)
                             }
                         }
@@ -577,7 +611,12 @@
 
                 If($BingResults)
                 {
-                    BingResults   
+                    DisplayBingResults
+
+                    If($wikidata)
+                    {
+                        Get-RelatedWikipediaLink $wikidata  
+                    }
                 }
 
             }
@@ -619,7 +658,7 @@
                                     $StatusPanel.controls.add($ProgressBar)
                                     $ProgressBar.value = 0
                                     $StatusPanel.Visible = $True                              
-                                    DisplayResults $(Invoke-WolframAlphaAPI $DidYouMeanText)
+                                    DisplayWolframResults $(Invoke-WolframAlphaAPI $DidYouMeanText)
                                     $Panel2.Visible = $True
                                     $Button.Enabled = $True
                                     $StatusPanel.controls.remove($ProgressBar)
@@ -633,7 +672,12 @@
             }
             ElseIf($BingResults)
             {
-                BingResults
+                DisplayBingResults
+                   
+                If($wikidata)
+                {
+                    Get-RelatedWikipediaLink $wikidata  
+                }
             }
             ElseIf($Result.tips.tip)
             {
@@ -677,6 +721,38 @@
         #
         #}
     }
+
+    #Main Funtion to Create the Basic form and its Structure.
+    Function Main
+    {
+        #Requires -version 5
+
+        #Download my Module for Microsoft Cognitive services
+        if(-not (Get-Module -Name ProjectOxford))
+        {
+            Install-Module -Name ProjectOxford -Scope CurrentUser -Force -Verbose
+        }
+            
+    
+        $Panel1.Controls.Add($TextBox1)
+        $Panel1.Controls.Add($Button)
+        $Panel1.Controls.Add($SaveButton)
+    
+        $Panel2.Controls.Add($AutocompleteLabel)
+    
+        $StatusPanel.Controls.Add($ProgressBar)
+
+        #Add all panels to the root Panel, so that the flow direction is Top to Down.    
+        $RootPanel.Controls.Add($Panel1)
+        $RootPanel.Controls.Add($StatusPanel)
+        $RootPanel.Controls.Add($RelatedQueriesPanel)
+        $RootPanel.Controls.Add($Panel2)
+        
+        #Add Root Panel to the Form and display it.
+        $Form.Controls.Add($RootPanel)
+        [void]$Form.ShowDialog()      
+    }
+
 
 #endregion function definition
 
