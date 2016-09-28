@@ -1,3 +1,9 @@
+Param
+(
+    [Switch] $EnableLogging,
+    [String] $LogDirectory = "$env:temp\PSSearchEngine"
+)
+
 #region Event Handlers
     
     #Event handlers
@@ -88,13 +94,15 @@
                                     
                                     $RelatedQueriesPanel.Controls.add($ContractButton)
                                     
+                                    $LongestString = ($RelatedQueries| select @{n='String';e={$_}},@{n='Length';e={$_.length}}  |sort length -Descending |select -First 1).string
+                                    $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($LongestString,$RegularFontBig)
                                     #Add related queries as a button onto related queries panel
-                                    Foreach($Rq in $RelatedQueries)
+                                    Foreach($Rq in (($RelatedQueries| select @{n='String';e={$_}},@{n='Length';e={$_.length}}  |sort length).string))
                                     {
                                     
                                         $Global:RelatedQueryButton = New-Object System.Windows.Forms.Button
                                         $RelatedQueryButton.Text = (Get-Culture).TextInfo.ToTitleCase("$Rq")
-                                        $RelatedQueryButton.AutoSize = $True
+                                        #$RelatedQueryButton.AutoSize = $True
                                         $RelatedQueryButton.BackColor = "White"
                                         $RelatedQueryButton.ForeColor = "Black"
                                         $RelatedQueryButton.Font = $RegularFontBig
@@ -102,7 +110,9 @@
                                         $RelatedQueryButton.FlatAppearance.BorderColor = 'Black'
                                         $RelatedQueryButton.FlatAppearance.BorderSize = 1
                                         $RelatedQueryButton.FlatAppearance.MouseOverBackColor = 'lightyellow'
-                                        $RelatedQueryButton.AutoSizeMode = 'GrowAndShrink'
+                                        $RelatedQueryButton.width = $RenderedText.Width +10
+                                        $RelatedQueryButton.height = $RenderedText.Height +10
+                                        $RelatedQueryButton.TextAlign = 'middleLeft'
                                     
                                         $RelatedQueryButton.Add_Click({
                                     
@@ -116,7 +126,7 @@
                                                                         $ProgressBar.value = 10
                                                                         $StatusPanel.Visible = $True
                                                                         $StatusLabel.Text = "Computing Fetching Results ..."
-                                                                        DisplayWolframResults = $(Invoke-WolframAlphaAPI $Rq)
+                                                                        DisplayWolframResults (Invoke-WolframAlphaAPI $Rq)
                                                                         $ProgressBar.value = 20
                                                                         $ExpanderButton.Visible = $true
                                                                         $ContractButton.Visible = $False
@@ -136,11 +146,13 @@
     }
 
     $RelatedQueryContractEventHandler = [System.EventHandler]{
-
+                                                              
+                                                             $Panel2.Visible = $False  
                                                              $RelatedQueriesPanel.Controls.Clear()
                                                              $RelatedQueriesPanel.Controls.add($ExpanderButton)
                                                              $ExpanderButton.Visible = $True
                                                              #$ContractButton.Visible = $False
+                                                             $Panel2.Visible = $True
     }
 
 #endregion Event Handlers
@@ -332,6 +344,12 @@
     Return (Invoke-RestMethod -Uri "http://api.wolframalpha.com/v2/query?appid=46XTUT-6T5H7K4V32&input=$($Query.Replace(' ','%20'))" -verbose).queryresult
     }
     
+    Function Set-ProgressUpdate($ProgressbarValue, $StatustText)
+    {
+            $ProgressBar.Value = $ProgressbarValue
+            $StatusLabel.Text = $StatustText
+    }
+
     #Extract Results to HTML fileh
     Function Get-Html($R)
     {
@@ -444,8 +462,32 @@
         }
     }
 
+    Function Export-SearchLog
+    {
+            If($EnableLogging)
+            {
+                #Write-Host "Search Queries are getting logged at $LogDirectory" -ForegroundColor Yellow
+
+                If(-not (Test-Path "$LogDirectory\PSSearchEngine"))
+                {
+                    mkdir "$LogDirectory\PSSearchEngine" | out-null
+                }
+
+                '' | select @{n='Date';e={(Get-Date).tostring("dd MMM yyyy")}}, @{n='Time';e={(Get-Date).tostring("HH:mm:ss")}}, @{n='SearchKeyword';e={$TextBox1.Text}}|Export-Csv "$LogDirectory\PSSearchEngine\SearchKeywords.csv" -Append -NoTypeInformation
+                
+                If($RelatedQueries)
+                {
+                    Foreach($item in $RelatedQueries)
+                    {
+                        '' | select @{n='Date';e={(Get-Date).tostring("dd MMM yyyy")}}, @{n='Time';e={(Get-Date).tostring("HH:mm:ss")}}, @{n='SearchKeyword';e={$TextBox1.Text}}, @{n='RelatedQuery';e={$RQ}} |Export-Csv "$LogDirectory\PSSearchEngine\RelatedQuery.csv" -Append -NoTypeInformation
+                    }
+                }
+            } 
+    }
+
     Function DisplayBingResults
     {
+
                 If($StatusLabel.Text -notlike "*seconds*")
                 {
                     $StatusLabel.Text = "Top 5 Results ( $("{0:N2}" -f $BingComputeTime) Seconds )"
@@ -498,52 +540,52 @@
                     $Panel2.Controls.Add($BingSnippetLabel)
                 }
     }
-    
+
     #Function to Create the data structure for Output on Panel 3
     Function DisplayWolframResults($Global:Result)
     {
         #Try
-        #{
+        #{  
+            #Update status in Status label and Increment progress bar
             $StatusPanel.Controls.Add($StatusLabel)
-            $ProgressBar.Value = 30
-            $StatusLabel.Text = "Searching Query using Bing"
+            Set-ProgressUpdate 30 "Searching Query using Bing"
 
+            #Search and get results from Bing
             $Global:BingComputeTime = (Measure-Command { $Global:BingResults =  Search-Bing -Query $TextBox1.Text -Count 5 -Verbose }).TotalSeconds
+            Set-ProgressUpdate 40 "Searching Wikipedia for related information"
+            
+            #Search wikipedia for articles related to our query
+            $Global:WikiData = Get-ContentSummary |Get-EntityLink| select 'wiki link' -ExpandProperty 'wiki link' -First 15 -ErrorAction SilentlyContinue
 
-            $ProgressBar.Value = 40
-            $StatusLabel.Text = "Searching Wikipedia for related information"
-
-            $Global:WikiData = Get-ContentSummary |Get-EntityLink| select 'wiki link' -ExpandProperty 'wiki link' -First 15
-
+            #If WolframAlpha returns result
             If($Result.success -eq $True)
             {
-                $ProgressBar.Value = 50
-                $StatusLabel.Text = "Loading related queries"
+                Set-ProgressUpdate 50 "Loading related queries"
 
                 #Fetch related queries 
                 $Global:RelatedQueries =  (Invoke-RestMethod -Uri $Result.related -Verbose).relatedqueries.relatedquery
 
-                #If related queries exist
+                #If related queries are found put a expander button on the panel
                 if($result.related -and $RelatedQueries)
                 {
-                    
                     #Expand/Contract functionality for Related queries
                     $ExpanderButton.Text = "Found $($RelatedQueries.count) Related queries $([char][int]'9660')"
                     $ContractButton.Text = "Found $($RelatedQueries.count) Related queries $([char][int]'9650')"
                     $RelatedQueriesPanel.Controls.Add($ExpanderButton)                
                     $RelatedQueriesPanel.Controls.Add($ContractButton)
                 }
+                
+                Set-ProgressUpdate 60 "Generating Output"
                                 
                 #Formula to calculate Progress bar increment each time a Sub Pod is parsed
-                $Increment = (50/[int]$Result.numpods)
-    
-                $i=50 #Initialize ProgressBar Value 
-                $StatusLabel.Text = "Generating Output"
-    
+                $Increment = (40/[int]$Result.numpods)       
+
+                $i=60 #Initialize ProgressBar Value 
+                
                 $DataType= $($Result.datatypes)
                 $WolframComputeTime =  [decimal]$Result.timing
                 
-    
+                #If any suggestions for Spelling mistakes
                 If($Result.warnings.spellcheck.text)
                 {
                     $spellcheck = $Result.warnings.spellcheck.text
@@ -560,7 +602,8 @@
                     $WarningLabel.AutoSize = $True
                     $Panel2.Controls.Add($WarningLabel)
                 }
-             
+                
+                #Iterate through each pods and extract the information                 
                 Foreach($p in $Result.pod)
                 {
                     $subpod = $p.subpod
@@ -594,21 +637,23 @@
                             }
                         }
     
-                #Increment the ProgressBar and display increasing values
-                $i=$i+$Increment
-                $ProgressBar.Value = $i
+                    #Increment the ProgressBar and display increasing values
+                    $i=$i+$Increment
+                    $ProgressBar.Value = $i
     
                 }
 
+                #Display the Data Type (like, Financial, History etc) and total time taken to fetch the results from Wolfram, Bing and WikiPedia
                 If($DataType)
                 {
                     $StatusLabel.Text = "$DataType ( "+ $("{0:N2}" -f ($WolframComputeTime+$BingComputeTime)) + " Seconds )"
                 }
-                else
+                else  #Only display total time taken to fetch the results from Wolfram, Bing and WikiPedia
                 {
                     $StatusLabel.Text = "Time : $("{0:N2}" -f ($WolframComputeTime+$BingComputeTime)) Seconds"
                 }
 
+                # Run this
                 If($BingResults)
                 {
                     DisplayBingResults
@@ -706,8 +751,7 @@
                 $Panel2.Controls.Add($Label)
             }
 
-
-
+            Export-SearchLog
         #}
         #catch
         #{
@@ -728,18 +772,16 @@
         #Requires -version 5
 
         #Download my Module for Microsoft Cognitive services
-        if(-not (Get-Module -Name ProjectOxford))
+        if(-not (Get-Module -ListAvailable | ?{$_.Name -eq 'ProjectOxford'}))
         {
             Install-Module -Name ProjectOxford -Scope CurrentUser -Force -Verbose
         }
-            
-    
+
+        #Add Controls to all panels
         $Panel1.Controls.Add($TextBox1)
         $Panel1.Controls.Add($Button)
         $Panel1.Controls.Add($SaveButton)
-    
         $Panel2.Controls.Add($AutocompleteLabel)
-    
         $StatusPanel.Controls.Add($ProgressBar)
 
         #Add all panels to the root Panel, so that the flow direction is Top to Down.    
