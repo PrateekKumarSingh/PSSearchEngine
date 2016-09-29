@@ -110,7 +110,7 @@ Param
                                         $RelatedQueryButton.FlatAppearance.BorderColor = 'Black'
                                         $RelatedQueryButton.FlatAppearance.BorderSize = 1
                                         $RelatedQueryButton.FlatAppearance.MouseOverBackColor = 'lightyellow'
-                                        $RelatedQueryButton.width = $RenderedText.Width +10
+                                        $RelatedQueryButton.width = $RenderedText.Width +20
                                         $RelatedQueryButton.height = $RenderedText.Height +10
                                         $RelatedQueryButton.TextAlign = 'middleLeft'
                                     
@@ -517,7 +517,7 @@ Param
                     $BingSnippetLabel.Text = ($R.snippet) #-replace ". ", ".`n"
                     $BingSnippetLabel.Font = $ItalicFont
                     $BingSnippetLabel.Padding = [System.Windows.Forms.Padding]::new(4,0,0,0)
-                    $BingSnippetLabel.UseCompatibleTextRendering =$True
+                    #$BingSnippetLabel.UseCompatibleTextRendering =$True
                     $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.Snippet,$ItalicFont)
                     $BingSnippetLabel.Height = $RenderedText.height
                     $BingSnippetLabel.Width = $RenderedText.width
@@ -530,7 +530,7 @@ Param
                     $BingLinkLabel.add_Click({Start-Process $r.url}.GetNewClosure())
                     $BingLinkLabel.Font = $RegularFont
                     $BingLinkLabel.Padding = 0
-                    $BingLinkLabel.UseCompatibleTextRendering =$True
+                    #$BingLinkLabel.UseCompatibleTextRendering =$True
                     $RenderedText = [System.Windows.Forms.TextRenderer]::MeasureText($R.URL,$RegularFont)
                     $BingLinkLabel.Height = $RenderedText.height
                     $BingLinkLabel.Width = $RenderedText.width
@@ -617,6 +617,15 @@ Param
 
                         foreach($s in $subpod)
                         {
+                            if(-not [string]::IsNullOrEmpty($S.title))
+                            {
+                                $SubpodTitle = new-object Windows.Forms.label
+                                $SubpodTitle.Text = $s.title
+                                $SubpodTitle.AutoSize = $True
+                                $SubpodTitle.Font = $BoldFont
+                                $Panel2.Controls.Add($SubpodTitle)
+                            }
+
                             #Incase plain text field is blank, display the image in the panel
                             if($s.plaintext -eq '')
                             {
