@@ -350,6 +350,55 @@ Param
             $StatusLabel.Text = $StatustText
     }
 
+    Function out-speech($times)
+{
+
+    $Siri = New-Object -ComObject SAPI.spvoice
+    #$Siri.Voice = $Siri.GetVoices() | ?{$_.id -like "*zira*"}
+    #$Siri.GetVoices()|%{$_.GetDescription()}
+
+        Foreach($p in $Result.pod)
+        {
+                If($p.subpod.plaintext)
+                {
+                    $Siri.Rate = 0
+                    $Siri.Speak($p.title)
+                }
+                
+                foreach($s in $p.subpod)
+                {
+                    $Siri.Rate = 3
+                    
+                    If($s.plaintext)
+                    {
+                        $Siri.Speak($s.plaintext)
+                    }
+                    elseif($s.img)
+                    {
+                        $Siri.rate = 2;$Siri.Speak("Image found for ")
+                        $Siri.rate = 0;$Siri.speak($p.title)
+                        $Siri.rate = 2;$Siri.speak("Popping it up on your screen, please check.")
+                        [void] [System.Reflection.Assembly]::LoadWithPartialName("'Microsoft.VisualBasic")
+                        $ID = (Start-Process iexplore.exe $s.img.src -WindowStyle Minimized -PassThru).id
+                        [Microsoft.VisualBasic.Interaction]::AppActivate($id)
+                        Start-Sleep -Milliseconds 100
+                    }
+                }     
+        }
+
+        If($WikiData)
+        {
+            $Siri.Rate = 0
+            $Siri.Speak("Some Wikipedia articles found which are related to result content. Major topics are")
+            $Siri.Rate = 2;
+            $WikiData| select -First 5 | %{ $siri.speak($(Split-Path $_ -Leaf).Replace('_'," "))}
+        }
+
+        $Siri.Rate =0;$Siri.Speak("End Of Content")
+        [console]::beep(1000,100);[console]::beep(1500,200)
+}
+
+
     #Extract Results to HTML fileh
     Function Get-Html($R)
     {
