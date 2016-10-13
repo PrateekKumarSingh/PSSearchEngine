@@ -53,7 +53,8 @@ Param
 
     $SpeakEventHandler = [System.EventHandler]{
 
-                                                    Start-Job -ScriptBlock ${function:Out-speech} -ArgumentList $Result,$WikiData, $RelatedQueries
+                                                   # Start-Job -ScriptBlock ${function:Out-speech} -ArgumentList $Result,$WikiData, $RelatedQueries
+    Start-Job -InitializationScript $init -ScriptBlock { param($Result,$WikiData, $RelatedQueries) Out-Speech ([xml](gc "$env:temp\Wolfram.xml")).queryresult} -ArgumentList $Result,$WikiData, $RelatedQueries
                                                     
     }
     
@@ -349,19 +350,45 @@ Param
     
     Function Invoke-BingAutoComplete
     {
-        Return (Invoke-RestMethod -Uri "http://api.bing.com/qsml.aspx?query=$($TextBox1.text)").searchsuggestion.section.item.text
+        (Invoke-RestMethod -Uri "http://api.bing.com/qsml.aspx?query=$($TextBox1.text)").searchsuggestion.section.item.text 
     }
     
+
     #Function to fetch the data from Wolfram|Alpha API based on user query
     Function Invoke-WolframAlphaAPI($Global:Query)
     {
-    Return (Invoke-RestMethod -Uri "http://api.wolframalpha.com/v2/query?appid=46XTUT-6T5H7K4V32&input=$($Query.Replace(' ','%20'))" -verbose).queryresult
+        $WolframAlphaResults = (Invoke-RestMethod -Uri "http://api.wolframalpha.com/v2/query?appid=46XTUT-6T5H7K4V32&input=$($Query.Replace(' ','%20'))" -verbose)
+        $WolframAlphaResults.queryresult
+        WriteXMLtoFile -Content $WolframAlphaResults -FileName "$env:temp\Wolfram.xml"
+    }
+
+    Function Set-ProgressUpdate($ProgressbarValue, $StatustText)
+    {
+            $ProgressBar.Value = $ProgressbarValue
+            $StatusLabel.Text = $StatustText
     }
     
-    Function Out-Speech($Result,$WikiData, $RelatedQueries, $times)
+    Function WriteXMLtoFile([xml]$Content, [string]$FileName)
     {
-    
-        $Replace = @{
+        $StringWriter = New-Object System.IO.StringWriter 
+        
+        $XmlWriter = New-Object System.XMl.XmlTextWriter $StringWriter 
+        $xmlWriter.Formatting = "indented" 
+        $xmlWriter.Indentation = 2
+        
+        $Content.WriteContentTo($XmlWriter) 
+        
+        $XmlWriter.Flush() 
+        $StringWriter.Flush() 
+        
+        Write-Output $StringWriter.ToString() | set-content $Filename
+    }
+
+    $init = {
+
+    #region Out-Speech Functions
+
+            $Replace = @{
                         'i.e' = "That-is"
                         'etc' = "et-cetera"
                         'e.g' = 'example'
@@ -383,13 +410,7 @@ Param
                         'hrs' = "hours"
                     }
 
-        #region Out-Speech Functions
 
-            Function Set-ProgressUpdate($ProgressbarValue, $StatustText)
-            {
-                    $ProgressBar.Value = $ProgressbarValue
-                    $StatusLabel.Text = $StatustText
-            }
             
             Function Start-TextProcessing($String)
             {
@@ -430,7 +451,10 @@ Param
                 
             }
 
-        #endregion Out-Speech Functions
+
+
+    Function Out-Speech($Result,$WikiData, $RelatedQueries, $times)
+    {
 
         $Jarvis = New-Object -ComObject SAPI.spvoice
     
@@ -441,6 +465,7 @@ Param
                     {
                         $Jarvis.Rate = -1
                         $Jarvis.Speak($p.title)
+                        #$p.title
                     }
                     
                     foreach($s in $p.subpod)
@@ -451,6 +476,7 @@ Param
                             $SubpodTitleSreing = $s.title + $p.title
                             $Jarvis.Rate = -1
                             $Jarvis.Speak($SubpodTitleSreing)
+                            #$SubpodTitleSreing
                         }
     
                         $Jarvis.Rate = 3
@@ -467,12 +493,14 @@ Param
                             }
     
                             $Jarvis.Speak($(Start-TextProcessing $string))
+                            #$(Start-TextProcessing $string)
                         }
                         elseif($s.img)
                         {
                             #$Jarvis.rate = 2;$Jarvis.Speak("Found Image of ")
                             #$Jarvis.rate = -1;$Jarvis.speak($SubpodTitleSreing)
                             $Jarvis.rate = 2;$Jarvis.speak("Presenting it up on your screen as Image. please check.")
+                            #"Presenting it up on your screen as Image. please check."
                             [void] [System.Reflection.Assembly]::LoadWithPartialName("'Microsoft.VisualBasic")
                             $ID = (Start-Process iexplore.exe $s.img.src -WindowStyle Minimized -PassThru).id
                             [Microsoft.VisualBasic.Interaction]::AppActivate($id)
@@ -481,7 +509,7 @@ Param
                     }     
             }
     
-            #Wikipedia Results
+            Wikipedia Results
             If($WikiData)
             {
                 $Jarvis.Rate = 0
@@ -508,7 +536,7 @@ Param
                     $Jarvis.speak($RelatedQueries -join '. ')
                 }
             }
-    
+            
             Start-Sleep -s 1
             
             $Jarvis.Rate =0;$Jarvis.Speak("End Of Content")
@@ -517,7 +545,9 @@ Param
             [console]::beep(1000,100);[console]::beep(1500,200)
     }
 
-
+    #endregion Out-Speech Functions
+    
+    }
 
     #Extract Results to HTML file
     Function Get-Html($R)
@@ -724,7 +754,11 @@ Param
             Set-ProgressUpdate 40 "Searching Wikipedia for related information"
             
             #Search wikipedia for articles related to our query
-            $Global:WikiData = Get-ContentSummary |Get-EntityLink| select 'wiki link' -ExpandProperty 'wiki link' -First 15 -ErrorAction SilentlyContinue
+            $Summary = Get-ContentSummary
+            If($Summary)
+            {
+                $Global:WikiData = $Summary |Get-EntityLink| select 'wiki link' -ExpandProperty 'wiki link' -First 15 -ErrorAction SilentlyContinue
+            }
 
             #If WolframAlpha returns result
             If($Result.success -eq $True)
