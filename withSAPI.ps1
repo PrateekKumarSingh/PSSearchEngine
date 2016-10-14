@@ -53,9 +53,26 @@ Param
 
     $SpeakEventHandler = [System.EventHandler]{
 
-                                                   # Start-Job -ScriptBlock ${function:Out-speech} -ArgumentList $Result,$WikiData, $RelatedQueries
-    Start-Job -InitializationScript $init -ScriptBlock { param($Result,$WikiData, $RelatedQueries) Out-Speech ([xml](gc "$env:temp\Wolfram.xml")).queryresult} -ArgumentList $Result,$WikiData, $RelatedQueries
-                                                    
+        If($SpeakButton.text -eq [char][int]'9654')
+        {
+            Start-Job -Name PSNarration -InitializationScript $init -ScriptBlock {
+            
+                param($WikiData,$RelatedQueries) Out-Speech ([xml](gc "$env:temp\Wolfram.xml")).queryresult $WikiData $RelatedQueries
+                
+            } -ArgumentList $WikiData,$RelatedQueries |Out-Null
+
+            $SpeakButton.ForeColor = 'Red'
+            $SpeakButton.Font = $BoldFontBig
+            $SpeakButton.Text = [char][int]'9607'
+        }
+        elseif($SpeakButton.text -eq [char][int]'9607')
+        {
+            Get-Job PSNarration | Remove-Job -Force
+            $SpeakButton.ForeColor = 'Green'
+            $SpeakButton.Font = $RegularFontVeryBig
+            $SpeakButton.Text = [char][int]'9654'
+        }
+                                                        
     }
     
     $DidYouMeanEventHandler =[System.EventHandler]{
@@ -178,6 +195,7 @@ Param
     $ItalicFontBig = New-Object System.Drawing.Font($FontFamily,10,[System.Drawing.FontStyle]::Italic) 
     $RegularFont = New-Object System.Drawing.Font($FontFamily,10,[System.Drawing.FontStyle]::Regular) 
     $RegularFontBig = New-Object System.Drawing.Font($FontFamily,11,[System.Drawing.FontStyle]::Regular)
+    $RegularFontVeryBig = New-Object System.Drawing.Font($FontFamily,20,[System.Drawing.FontStyle]::Regular) 
     $Bing = New-Object System.Drawing.Font($FontFamily,11,([System.Drawing.FontStyle]::Bold+[System.Drawing.FontStyle]::Italic)) 
     $BoldFont = New-Object System.Drawing.Font($FontFamily,11,[System.Drawing.FontStyle]::bold) 
     $BoldFontBig = New-Object System.Drawing.Font($FontFamily,13,[System.Drawing.FontStyle]::bold) 
@@ -249,10 +267,12 @@ Param
 
             #Speak button to read the result content
             $SpeakButton = New-Object System.Windows.Forms.Button
-            $SpeakButton.text = "Speak"    
+            $SpeakButton.text = [char][int]'9654'
+            $SpeakButton.ForeColor = 'Green'              
             #$SaveButton.Image = [System.Drawing.Image]::FromFile("C:\Data\save.png")
-            $SpeakButton.Font = $BoldFontBig
+            $SpeakButton.Font = $RegularFontVeryBig
             $SpeakButton.Height =  40
+            $SpeakButton.width =  40
             $SpeakButton.Add_Click($SpeakEventHandler)
 
         #endregion Panel1 items
@@ -353,7 +373,6 @@ Param
         (Invoke-RestMethod -Uri "http://api.bing.com/qsml.aspx?query=$($TextBox1.text)").searchsuggestion.section.item.text 
     }
     
-
     #Function to fetch the data from Wolfram|Alpha API based on user query
     Function Invoke-WolframAlphaAPI($Global:Query)
     {
@@ -458,19 +477,20 @@ Param
 
         $Jarvis = New-Object -ComObject SAPI.spvoice
     
-            #Wolfam Results
+            #WolframAlpha Results
             Foreach($p in $Result.pod)
             {
-                    If($p.subpod.plaintext)
+                    If($p.subpod.plaintext -or $p.subpod.img)
                     {
                         $Jarvis.Rate = -1
                         $Jarvis.Speak($p.title)
                         #$p.title
                     }
+
                     
                     foreach($s in $p.subpod)
                     {
-    
+            
                         if(-not [string]::IsNullOrEmpty($S.title))
                         {
                             $SubpodTitleSreing = $s.title + $p.title
@@ -478,9 +498,9 @@ Param
                             $Jarvis.Speak($SubpodTitleSreing)
                             #$SubpodTitleSreing
                         }
-    
+            
                         $Jarvis.Rate = 3
-    
+            
                         If($s.plaintext)
                         {
                             If($p.title -like "*decimal*approximation*")
@@ -491,7 +511,7 @@ Param
                             {
                                 $string = $s.plaintext
                             }
-    
+            
                             $Jarvis.Speak($(Start-TextProcessing $string))
                             #$(Start-TextProcessing $string)
                         }
@@ -509,7 +529,7 @@ Param
                     }     
             }
     
-            Wikipedia Results
+            #Wikipedia Results
             If($WikiData)
             {
                 $Jarvis.Rate = 0
@@ -757,6 +777,7 @@ Param
             $Summary = Get-ContentSummary
             If($Summary)
             {
+                $Global:WikiData = ''
                 $Global:WikiData = $Summary |Get-EntityLink| select 'wiki link' -ExpandProperty 'wiki link' -First 15 -ErrorAction SilentlyContinue
             }
 
@@ -766,7 +787,8 @@ Param
                 Set-ProgressUpdate 50 "Loading related queries"
 
                 #Fetch related queries 
-                $Global:RelatedQueries =  (Invoke-RestMethod -Uri $Result.related -Verbose).relatedqueries.relatedquery
+                $Global:RelatedQueries = ''
+                $Global:RelatedQueries =  (Invoke-RestMethod -Uri $Result.related -Verbose -timeoutsec 30 -ErrorAction SilentlyContinue).relatedqueries.relatedquery
 
                 #If related queries are found put a expander button on the panel
                 if($result.related -and $RelatedQueries)
@@ -866,7 +888,7 @@ Param
                 }
 
                 # Run this
-                If($BingResults)
+                If($BingResults -and $BingResults.GetTypeCode() -ne 'String')
                 {
                     DisplayBingResults
 
@@ -1007,7 +1029,6 @@ Param
         $Form.Controls.Add($RootPanel)
         [void]$Form.ShowDialog()      
     }
-
 
 #endregion function definition
 
