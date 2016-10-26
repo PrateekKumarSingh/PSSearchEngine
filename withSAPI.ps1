@@ -57,7 +57,7 @@ Param
         {
             Start-Job -Name PSNarration -InitializationScript $init -ScriptBlock {
             
-                param($WikiData,$RelatedQueries) Out-Speech ([xml](gc "$env:temp\Wolfram.xml")).queryresult $WikiData $RelatedQueries
+                param($WikiData,$RelatedQueries, $Times) Out-Speech ([xml](gc "$env:temp\Wolfram.xml")).queryresult $WikiData $RelatedQueries $Times
                 
             } -ArgumentList $WikiData,$RelatedQueries |Out-Null
 
@@ -187,7 +187,9 @@ Param
     [void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
     #[void] [System.Reflection.Assembly]::LoadWithPartialName("System.Drawing")
     
-    #Define Text Font object
+    $Global:Times = 1
+
+    #region Define Font object
     $FontFamily = "Lucida sans"
 
     $ArialNarrow = New-Object System.Drawing.Font('Arial',8,[System.Drawing.FontStyle]::Italic) 
@@ -200,6 +202,8 @@ Param
     $BoldFont = New-Object System.Drawing.Font($FontFamily,11,[System.Drawing.FontStyle]::bold) 
     $BoldFontBig = New-Object System.Drawing.Font($FontFamily,13,[System.Drawing.FontStyle]::bold) 
     
+    #endregion Define Font object
+
     #Define the Form
     $Form = New-Object system.Windows.Forms.Form
     $Form.Text="PS Search Engine"
@@ -274,6 +278,23 @@ Param
             $SpeakButton.Height =  40
             $SpeakButton.width =  40
             $SpeakButton.Add_Click($SpeakEventHandler)
+
+            $SpeedDropDown = New-Object System.Windows.Forms.Combobox
+            #$SpeedDropDown.Size = New-Object System.Drawing.Size(200,100)
+            #$SpeedDropDown.DropDownHeight = 200
+            $SpeedDropDown.Font = New-Object System.Drawing.Font($FontFamily,18,[System.Drawing.FontStyle]::Regular)
+            $SpeedDropDown.Padding = 40
+            $SpeedDropDown.Location = New-Object System.Drawing.Size(620,3) 
+            #$Size.Height = 40
+            #$Size.Width = 150
+            #$SpeedDropDown.Size = $Size
+            $SpeedDropDown.Items.Add("Speed (0.25x)")
+            $SpeedDropDown.Items.Add("Speed (0.50x)")
+            $SpeedDropDown.Items.Add("Speed (1x)")
+            $SpeedDropDown.Items.Add("Speed (1.25x)")
+            $SpeedDropDown.Items.Add("Speed (1.50x)")
+            $SpeedDropDown.Items.Add("Speed (2x)")
+
 
         #endregion Panel1 items
 
@@ -411,7 +432,7 @@ Param
                         'i.e' = "That-is"
                         'etc' = "et-cetera"
                         'e.g' = 'example'
-                        '|'   = "."
+                        '|'   = ","
                         '^'   = "raise-to-the-power"
                         'Dr.' = "Doctor"
                         'Mr.' = "Mister"
@@ -429,7 +450,6 @@ Param
                         'hrs' = "hours"
                     }
 
-
             
             Function Start-TextProcessing($String)
             {
@@ -446,31 +466,30 @@ Param
             
                 $Approx = foreach($item in $s.Split(" "))
                 {
-            
-                $Item = $item.Replace("...",'').replace("..",'')
+                
+                    #Removes all dots except the decimal (.) notation
+                    $Item = $item.Replace("...",'').replace("..",'')
+                        
+                    $prev = $ErrorActionPreference
+                    $ErrorActionPreference = 'silentlycontinue'
                     
-                $prev = $ErrorActionPreference
-                $ErrorActionPreference = 'silentlycontinue'
-                
-                    $dec = [decimal]$item
-                
-                    if($?)
-                    {
-                        [String]("{0:N6}" -f $dec) -join " "
-                    }
-                    else
-                    {
-                        $item -join " "
-                    }
-                
-                $ErrorActionPreference = $prev
+                        $dec = [decimal]$item
+                    
+                        if($?)
+                        {
+                            [String]("{0:N6}" -f $dec) -join " "
+                        }
+                        else
+                        {
+                            $item -join " "
+                        }
+                    
+                    $ErrorActionPreference = $prev
                 }
                 
                 $Approx -join " "
                 
             }
-
-
 
     Function Out-Speech($Result,$WikiData, $RelatedQueries, $times)
     {
@@ -482,7 +501,7 @@ Param
             {
                     If($p.subpod.plaintext -or $p.subpod.img)
                     {
-                        $Jarvis.Rate = -1
+                        $Jarvis.Rate = 1*$times
                         $Jarvis.Speak($p.title)
                         #$p.title
                     }
@@ -493,19 +512,19 @@ Param
             
                         if(-not [string]::IsNullOrEmpty($S.title))
                         {
-                            $SubpodTitleSreing = $s.title + $p.title
-                            $Jarvis.Rate = -1
-                            $Jarvis.Speak($SubpodTitleSreing)
+                            $SubpodTitleString = $s.title + $p.title
+                            $Jarvis.Rate = 1*$times
+                            $Jarvis.Speak($SubpodTitleString)
                             #$SubpodTitleSreing
                         }
             
-                        $Jarvis.Rate = 3
+                        $Jarvis.Rate = 3*$times
             
                         If($s.plaintext)
                         {
                             If($p.title -like "*decimal*approximation*")
                             {
-                                $string = "Approxmately $(Get-Approximation $s.plaintext)"
+                                $string = "Approxmately, $(Get-Approximation $s.plaintext)"
                             }
                             else
                             {
@@ -519,7 +538,7 @@ Param
                         {
                             #$Jarvis.rate = 2;$Jarvis.Speak("Found Image of ")
                             #$Jarvis.rate = -1;$Jarvis.speak($SubpodTitleSreing)
-                            $Jarvis.rate = 2;$Jarvis.speak("Presenting it up on your screen as Image. please check.")
+                            $Jarvis.rate = 1*$times;$Jarvis.speak("Presenting it , up on your screen, as Image. Please check.")
                             #"Presenting it up on your screen as Image. please check."
                             [void] [System.Reflection.Assembly]::LoadWithPartialName("'Microsoft.VisualBasic")
                             $ID = (Start-Process iexplore.exe $s.img.src -WindowStyle Minimized -PassThru).id
@@ -1016,6 +1035,7 @@ Param
         $Panel1.Controls.Add($Button)
         $Panel1.Controls.Add($SaveButton)
         $Panel1.Controls.Add($SpeakButton)
+        $Panel1.Controls.Add($SpeedDropDown)
         $Panel2.Controls.Add($AutocompleteLabel)
         $StatusPanel.Controls.Add($ProgressBar)
 
